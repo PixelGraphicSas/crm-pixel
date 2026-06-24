@@ -903,8 +903,8 @@ function renderDashboard(el, actions) {
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">' +
       '<span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">KPIs:</span>' +
       '<div class="pill-tabs" id="dashTabs">' +
-        ['mes','trimestre','semestre','anio','todo'].map(function(p) {
-          var lbl = {mes:'Este mes', trimestre:'Trimestre', semestre:'Semestre', anio:'Este año', todo:'Todo'}[p];
+        ['mes','trimestre','semestre','anio','rango','todo'].map(function(p) {
+          var lbl = {mes:'Este mes', trimestre:'Trimestre', semestre:'Semestre', anio:'Este año', rango:'Rango', todo:'Todo'}[p];
           return '<button class="pill-tab' + (dashPeriodo===p?' active':'') + '" onclick="setDashPeriodo(\''+p+'\')">'+lbl+'</button>';
         }).join('') +
       '</div>' +
@@ -976,7 +976,7 @@ function setChartMode(mode) {
 function setDashPeriodo(p) {
   dashPeriodo = p;
   document.querySelectorAll('#dashTabs .pill-tab').forEach(function(btn, i) {
-    var periods = ['mes','trimestre','semestre','anio','todo'];
+    var periods = ['mes','trimestre','semestre','anio','rango','todo'];
     btn.classList.toggle('active', periods[i] === p);
   });
   var ri = document.getElementById('rangoInputs');
