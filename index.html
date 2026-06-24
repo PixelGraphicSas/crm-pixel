@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM Pixel — Pixel Graphic SAS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --bg:        #0D1117;
+  --surface:   #161B22;
+  --surface2:  #1C2128;
+  --surface3:  #21262D;
+  --border:    #30363D;
+  --border2:   #3D444D;
+  --text:      #E6EDF3;
+  --text2:     #8B949E;
+  --text3:     #484F58;
+  --accent:    #4f8ef7;
+  --accent2:   #1f6feb;
+  --green:     #3FB950;
+  --yellow:    #D29922;
+  --red:       #F85149;
+  --orange:    #E3811C;
+  --purple:    #BC8CFF;
+  --gold:      #C87941;
+  --font:      'Space Grotesk', sans-serif;
+  --mono:      'JetBrains Mono', monospace;
+  --radius:    8px;
+  --radius-lg: 12px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); font-size:14px; line-height:1.5; min-height:100vh; }
+
+/* ─── LAYOUT ─── */
+.app { display:flex; min-height:100vh; }
+.sidebar {
+  width:230px; min-width:230px;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+}
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.topbar {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 28px; height:56px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:10;
+}
+.content { flex:1; padding:28px; }
+
+/* ─── LOGO / SIDEBAR ─── */
+.logo-area {
+  padding:20px 18px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px;
+}
+.logo-img { width:36px; height:36px; object-fit:contain; }
+.logo-text { display:flex; flex-direction:column; }
+.logo-name { font-size:13px; font-weight:700; letter-spacing:.03em; color:var(--text); }
+.logo-sub  { font-family:var(--mono); font-size:9px; color:var(--text3); letter-spacing:.1em; text-transform:uppercase; margin-top:1px; }
+
+.nav { padding:10px 0; flex:1; }
+.nav-section { padding:10px 18px 4px; font-family:var(--mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--text3); }
+.nav-item {
+  display:flex; align-items:center; gap:9px;
+  padding:8px 18px; cursor:pointer; font-size:13px; font-weight:500;
+  color:var(--text2); border-left:2px solid transparent;
+  transition:all .15s;
+}
+.nav-item:hover { background:var(--surface2); color:var(--text); }
+.nav-item.active { background:var(--surface2); color:var(--accent); border-left-color:var(--accent); }
+.nav-item svg { width:15px; height:15px; flex-shrink:0; }
+
+.sidebar-footer { padding:14px 18px; border-top:1px solid var(--border); }
+.user-chip { display:flex; align-items:center; gap:8px; }
+.user-avatar {
+  width:28px; height:28px; border-radius:50%;
+  background:var(--accent2); display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; color:#fff; flex-shrink:0;
+}
+.user-name { font-size:12px; font-weight:500; color:var(--text); }
+.user-role { font-family:var(--mono); font-size:9px; color:var(--text3); }
+.btn-logout {
+  margin-left:auto; background:none; border:none; cursor:pointer;
+  color:var(--text3); transition:color .15s;
+}
+.btn-logout:hover { color:var(--red); }
+
+/* ─── TOPBAR ─── */
+.page-title { font-size:16px; font-weight:600; }
+.topbar-actions { display:flex; align-items:center; gap:10px; }
+
+/* ─── BUTTONS ─── */
+.btn {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:7px 14px; border-radius:var(--radius); font-family:var(--font);
+  font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all .15s;
+}
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:var(--accent2); }
+.btn-secondary { background:var(--surface3); color:var(--text); border:1px solid var(--border); }
+.btn-secondary:hover { background:var(--border); }
+.btn-ghost { background:none; color:var(--text2); border:1px solid var(--border); }
+.btn-ghost:hover { background:var(--surface2); color:var(--text); }
+.btn-danger { background:var(--red); color:#fff; }
+.btn-danger:hover { opacity:.85; }
+.btn-sm { padding:5px 10px; font-size:12px; }
+.btn svg { width:14px; height:14px; }
+
+/* ─── CARDS / STATS ─── */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:18px 20px;
+}
+.stat-label { font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); margin-bottom:8px; }
+.stat-value { font-size:24px; font-weight:700; color:var(--text); line-height:1; }
+.stat-sub { font-size:11px; color:var(--text3); margin-top:4px; }
+.stat-accent { color:var(--accent); }
+.stat-green  { color:var(--green); }
+.stat-yellow { color:var(--yellow); }
+.stat-red    { color:var(--red); }
+
+/* ─── TABLE ─── */
+.table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; }
+.table-header {
+  padding:14px 20px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  flex-wrap:wrap;
+}
+.search-box {
+  display:flex; align-items:center; gap:8px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:6px 12px; min-width:220px;
+}
+.search-box input { background:none; border:none; outline:none; font-family:var(--font); font-size:13px; color:var(--text); width:100%; }
+.search-box input::placeholder { color:var(--text3); }
+.search-box svg { color:var(--text3); flex-shrink:0; }
+table { width:100%; border-collapse:collapse; }
+thead tr { border-bottom:1px solid var(--border); }
+thead th { padding:10px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); font-weight:500; white-space:nowrap; }
+tbody tr { border-bottom:1px solid var(--border); transition:background .12s; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:var(--surface2); }
+tbody td { padding:11px 16px; font-size:13px; vertical-align:middle; }
+.td-mono { font-family:var(--mono); font-size:12px; }
+
+/* ─── BADGES ─── */
+.badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px; border-radius:20px; font-size:11px; font-weight:500;
+  font-family:var(--mono);
+}
+.badge-blue   { background:rgba(79,142,247,.15); color:var(--accent); }
+.badge-green  { background:rgba(63,185,80,.15);  color:var(--green); }
+.badge-yellow { background:rgba(210,153,34,.15); color:var(--yellow); }
+.badge-red    { background:rgba(248,81,73,.15);  color:var(--red); }
+.badge-gray   { background:var(--surface3);       color:var(--text2); }
+.badge-gold   { background:rgba(200,121,65,.15); color:var(--gold); }
+
+/* ─── MODAL ─── */
+.modal-overlay {
+  display:none; position:fixed; inset:0; z-index:100;
+  background:rgba(0,0,0,.65); align-items:center; justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--radius-lg); width:min(680px,95vw);
+  max-height:90vh; overflow-y:auto;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+}
+.modal-lg { width:min(900px,95vw); }
+.modal-xl { width:min(1100px,95vw); }
+.modal-header {
+  padding:18px 22px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.modal-title { font-size:15px; font-weight:600; }
+.modal-body { padding:22px; }
+.modal-footer {
+  padding:14px 22px; border-top:1px solid var(--border);
+  display:flex; justify-content:flex-end; gap:10px;
+}
+.btn-close { background:none; border:none; cursor:pointer; color:var(--text2); line-height:1; }
+.btn-close:hover { color:var(--text); }
+.btn-close svg { width:18px; height:18px; }
+
+/* ─── FORMS ─── */
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.form-grid-3 { grid-template-columns:1fr 1fr 1fr; }
+.form-full { grid-column:1/-1; }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-label { font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); }
+.form-input, .form-select, .form-textarea {
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--text); font-family:var(--font); font-size:13px; padding:8px 11px;
+  outline:none; transition:border-color .15s; width:100%;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color:var(--accent); }
+.form-textarea { resize:vertical; min-height:70px; }
+.form-select { appearance:none; cursor:pointer; }
+option { background:var(--surface2); }
+
+/* ─── ITEMS TABLE (cotización) ─── */
+.items-wrap { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin:16px 0; }
+.items-head { display:grid; grid-template-columns:2fr 3fr 80px 110px 100px 90px 32px; gap:8px; padding:8px 12px; background:var(--surface3); }
+.items-head span { font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); }
+.item-row { display:grid; grid-template-columns:2fr 3fr 80px 110px 100px 90px 32px; gap:8px; padding:8px 12px; border-top:1px solid var(--border); align-items:start; }
+.item-row input, .item-row select, .item-row textarea {
+  background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-family:var(--font); font-size:12px; padding:5px 7px;
+  outline:none; width:100%;
+}
+.item-row input:focus, .item-row select:focus, .item-row textarea:focus { border-color:var(--accent); }
+.item-row textarea { resize:vertical; min-height:52px; }
+.item-value { font-family:var(--mono); font-size:12px; color:var(--text); padding-top:6px; }
+.btn-remove-item { background:none; border:none; cursor:pointer; color:var(--text3); padding:4px; border-radius:4px; margin-top:4px; }
+.btn-remove-item:hover { color:var(--red); background:rgba(248,81,73,.1); }
+.totals-box { padding:14px 16px; background:var(--surface3); border-top:1px solid var(--border); }
+.total-row { display:flex; justify-content:flex-end; gap:24px; margin-bottom:5px; font-size:13px; }
+.total-row:last-child { margin-bottom:0; font-weight:700; font-size:15px; border-top:1px solid var(--border); padding-top:8px; margin-top:8px; }
+.total-label { color:var(--text2); }
+.total-val { font-family:var(--mono); color:var(--text); min-width:130px; text-align:right; }
+
+/* ─── CATALOG GRID ─── */
+.catalog-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+.catalog-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:16px; cursor:pointer; transition:all .15s;
+}
+.catalog-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+.catalog-card-name { font-weight:600; font-size:13px; margin-bottom:6px; }
+.catalog-card-desc { font-size:12px; color:var(--text2); margin-bottom:10px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.catalog-card-price { font-family:var(--mono); font-size:13px; color:var(--accent); }
+.catalog-card-tax { font-family:var(--mono); font-size:11px; color:var(--text3); }
+
+/* ─── EMPTY STATE ─── */
+.empty-state { padding:60px 20px; text-align:center; }
+.empty-state svg { color:var(--text3); margin-bottom:14px; }
+.empty-state h3 { font-size:15px; font-weight:600; margin-bottom:6px; }
+.empty-state p { font-size:13px; color:var(--text2); margin-bottom:20px; }
+
+/* ─── LOGIN ─── */
+.login-wrap {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--bg);
+}
+.login-box {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:40px; width:min(400px,92vw);
+  box-shadow:0 24px 64px rgba(0,0,0,.4);
+}
+.login-logo { display:flex; align-items:center; gap:12px; margin-bottom:28px; }
+.login-logo img { width:44px; height:44px; object-fit:contain; }
+.login-logo-text h1 { font-size:18px; font-weight:700; }
+.login-logo-text p { font-family:var(--mono); font-size:10px; color:var(--text3); letter-spacing:.08em; text-transform:uppercase; }
+.login-title { font-size:15px; font-weight:600; margin-bottom:6px; }
+.login-sub { font-size:13px; color:var(--text2); margin-bottom:24px; }
+.login-err { background:rgba(248,81,73,.12); border:1px solid rgba(248,81,73,.3); border-radius:var(--radius); padding:10px 12px; font-size:12px; color:var(--red); margin-bottom:16px; display:none; }
+
+/* ─── MISC ─── */
+.divider { border:none; border-top:1px solid var(--border); margin:20px 0; }
+.pill-tabs { display:flex; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:3px; }
+.pill-tab { padding:5px 14px; border-radius:6px; font-size:12px; font-weight:500; cursor:pointer; color:var(--text2); transition:all .15s; border:none; background:none; font-family:var(--font); }
+.pill-tab.active { background:var(--surface3); color:var(--text); }
+.actions-cell { display:flex; gap:6px; }
+.tag { display:inline-block; padding:2px 7px; border-radius:4px; font-size:10px; font-family:var(--mono); background:var(--surface3); color:var(--text2); }
+.section-title { font-size:15px; font-weight:600; margin-bottom:16px; }
+.inline-flex { display:flex; align-items:center; gap:8px; }
+.color-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; align-items:center; justify-content:center; }
+.loading-overlay.show { display:flex; }
+.toast {
+  position:fixed; bottom:24px; right:24px; z-index:300;
+  background:var(--surface2); border:1px solid var(--border2);
+  border-radius:var(--radius); padding:12px 16px;
+  font-size:13px; display:none; align-items:center; gap:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4); min-width:240px;
+}
+.toast.show { display:flex; }
+.toast.toast-ok  { border-left:3px solid var(--green); }
+.toast.toast-err { border-left:3px solid var(--red); }
+
+/* ─── ACCIONES EN COTIZACIÓN ─── */
+.cot-status-flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.status-step {
+  display:flex; align-items:center; gap:6px;
+  font-size:12px; color:var(--text3);
+}
+.status-step.done { color:var(--green); }
+.status-step.active { color:var(--accent); font-weight:600; }
+.status-sep { color:var(--border2); font-size:16px; }
+
+/* ─── COTIZACION DETAIL ─── */
+.cot-detail-header {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:20px; margin-bottom:16px;
+}
+.cot-meta-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; margin-top:14px; }
+.cot-meta-item { }
+.cot-meta-label { font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); margin-bottom:3px; }
+.cot-meta-val { font-size:13px; font-weight:500; }
+
+/* ─── IMPORT PREVIEW ─── */
+.import-preview { max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     LOGIN
+════════════════════════════════════════ -->
+<div id="loginWrap" class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <img src="https://pixelgraphicsas.github.io/tc-monitor/logo.png" alt="Pixel" style="mix-blend-mode:screen">
+      <div class="login-logo-text">
+        <h1>CRM Pixel</h1>
+        <p>Pixel Graphic SAS</p>
+      </div>
+    </div>
+    <p class="login-title">Bienvenido</p>
+    <p class="login-sub">Accede con tu cuenta Pixel</p>
+    <div id="loginErr" class="login-err"></div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">Correo</label>
+      <input id="loginEmail" type="email" class="form-input" placeholder="correo@pixel-g.com">
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label class="form-label">Contraseña</label>
+      <input id="loginPass" type="password" class="form-input" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Ingresar</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     APP
+════════════════════════════════════════ -->
+<div id="appWrap" class="app" style="display:none">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo-area">
+      <img class="logo-img" src="https://pixelgraphicsas.github.io/tc-monitor/logo.png" alt="Pixel" style="mix-blend-mode:screen">
+      <div class="logo-text">
+        <span class="logo-name">CRM Pixel</span>
+        <span class="logo-sub">Pixel Graphic SAS</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section">Principal</div>
+      <div class="nav-item active" onclick="navTo('dashboard')" id="nav-dashboard">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke-width="2"/></svg>
+        Dashboard
+      </div>
+
+      <div class="nav-section">Comercial</div>
+      <div class="nav-item" onclick="navTo('cotizaciones')" id="nav-cotizaciones">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Cotizaciones
+      </div>
+      <div class="nav-item" onclick="navTo('clientes')" id="nav-clientes">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Clientes
+      </div>
+
+      <div class="nav-section">Configuración</div>
+      <div class="nav-item" onclick="navTo('catalogo')" id="nav-catalogo">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        Catálogo de Servicios
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div>
+          <div class="user-name" id="userName">—</div>
+          <div class="user-role">Usuario</div>
+        </div>
+        <button class="btn-logout" onclick="doLogout()" title="Cerrar sesión">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <span class="page-title" id="pageTitle">Dashboard</span>
+      <div class="topbar-actions" id="topbarActions"></div>
+    </div>
+    <div class="content" id="pageContent"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MODALS
+════════════════════════════════════════ -->
+
+<!-- Modal Cliente -->
+<div class="modal-overlay" id="modalCliente">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalClienteTitle">Nuevo Cliente</span>
+      <button class="btn-close" onclick="closeModal('modalCliente')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="clienteId">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">Empresa / Razón Social *</label>
+          <input id="cliEmpresa" class="form-input" placeholder="Ej: Panamericana S.A.S">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contacto Principal</label>
+          <input id="cliContacto" class="form-input" placeholder="Nombre del contacto">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cargo</label>
+          <input id="cliCargo" class="form-input" placeholder="Ej: Directora de Marca">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input id="cliEmail" type="email" class="form-input" placeholder="correo@empresa.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input id="cliTel" class="form-input" placeholder="3XX XXX XXXX">
+        </div>
+        <div class="form-group">
+          <label class="form-label">NIT / CC</label>
+          <input id="cliNit" class="form-input" placeholder="900.000.000-0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ciudad</label>
+          <input id="cliCiudad" class="form-input" placeholder="Medellín">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Dirección</label>
+          <input id="cliDir" class="form-input" placeholder="Calle 65 # 45-10">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Notas</label>
+          <textarea id="cliNotas" class="form-textarea" placeholder="Observaciones, condiciones especiales..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">Guardar Cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Servicio/Catálogo -->
+<div class="modal-overlay" id="modalServicio">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalServicioTitle">Nuevo Servicio</span>
+      <button class="btn-close" onclick="closeModal('modalServicio')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="servicioId">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">Nombre del Servicio *</label>
+          <input id="svcNombre" class="form-input" placeholder="Ej: RETOQUE FOTOGRAFÍA DE MODA">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Descripción larga</label>
+          <textarea id="svcDesc" class="form-textarea" placeholder="Descripción detallada que aparecerá en la cotización..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Precio unitario (COP) *</label>
+          <input id="svcPrecio" type="number" class="form-input" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">IVA</label>
+          <select id="svcIva" class="form-select">
+            <option value="0">Sin IVA (0%)</option>
+            <option value="19" selected>IVA 19%</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoría</label>
+          <input id="svcCategoria" class="form-input" placeholder="Ej: Fotografía, Retoque, Diseño...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unidad</label>
+          <select id="svcUnidad" class="form-select">
+            <option value="Unidad">Unidad</option>
+            <option value="Hora">Hora</option>
+            <option value="Día">Día</option>
+            <option value="Imagen">Imagen</option>
+            <option value="Página">Página</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalServicio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveServicio()">Guardar Servicio</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cotización -->
+<div class="modal-overlay" id="modalCotizacion">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <span class="modal-title" id="modalCotTitle">Nueva Cotización</span>
+      <button class="btn-close" onclick="closeModal('modalCotizacion')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cotId">
+      <!-- Encabezado -->
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="form-group form-full">
+          <label class="form-label">Tema / Título *</label>
+          <input id="cotTema" class="form-input" placeholder="Ej: PRODUCCIÓN FOTOGRÁFICA PARA CATÁLOGO">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cliente *</label>
+          <select id="cotCliente" class="form-select" onchange="onClienteChange()">
+            <option value="">Seleccionar cliente...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contacto (Para)</label>
+          <input id="cotPara" class="form-input" placeholder="Nombre del destinatario">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha</label>
+          <input id="cotFecha" type="date" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Válida hasta</label>
+          <input id="cotValidez" type="date" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <select id="cotEstado" class="form-select">
+            <option value="Borrador">Borrador</option>
+            <option value="Enviada">Enviada</option>
+            <option value="En estudio">En estudio</option>
+            <option value="Aceptada">Aceptada</option>
+            <option value="Rechazada">Rechazada</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Items -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600">Ítems</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="openCatalogoPicker()">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Desde catálogo
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="addItemRow()">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Ítem manual
+          </button>
+        </div>
+      </div>
+
+      <div class="items-wrap">
+        <div class="items-head">
+          <span>Artículo</span>
+          <span>Descripción</span>
+          <span>Cantidad</span>
+          <span>Precio unit.</span>
+          <span>IVA</span>
+          <span>Valor</span>
+          <span></span>
+        </div>
+        <div id="itemsContainer"></div>
+      </div>
+
+      <div class="totals-box">
+        <div class="total-row"><span class="total-label">Total neto</span><span class="total-val" id="totNeto">$0</span></div>
+        <div class="total-row"><span class="total-label">IVA (19%)</span><span class="total-val" id="totIva">$0</span></div>
+        <div class="total-row"><span class="total-label">TOTAL</span><span class="total-val" id="totTotal">$0</span></div>
+      </div>
+
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">Notas / Condiciones</label>
+        <textarea id="cotNotas" class="form-textarea" placeholder="Condiciones de pago, vigencia, observaciones..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalCotizacion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCotizacion()">Guardar Cotización</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Catálogo Picker -->
+<div class="modal-overlay" id="modalCatalogoPicker">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title">Agregar desde Catálogo</span>
+      <button class="btn-close" onclick="closeModal('modalCatalogoPicker')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="search-box" style="margin-bottom:16px">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M21 21l-4.35-4.35"/></svg>
+        <input id="pickerSearch" placeholder="Buscar servicio..." oninput="filterPicker()">
+      </div>
+      <div id="pickerGrid" class="catalog-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal PDF Preview -->
+<div class="modal-overlay" id="modalPDF">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <span class="modal-title" id="pdfTitle">Cotización</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="printPDF()">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Imprimir / PDF
+        </button>
+        <button class="btn-close" onclick="closeModal('modalPDF')">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-body" id="pdfBody"></div>
+  </div>
+</div>
+
+<!-- Modal Importar Historial -->
+<div class="modal-overlay" id="modalImport">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title">Importar Historial de Propuestas</span>
+      <button class="btn-close" onclick="closeModal('modalImport')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Sube el Excel exportado del sistema anterior. Las propuestas se importarán como historial (solo cabecera, sin ítems).</p>
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImport()">
+      <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Seleccionar archivo
+      </button>
+      <div id="importPreview" style="margin-top:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalImport')">Cancelar</button>
+      <button class="btn btn-primary" id="btnDoImport" style="display:none" onclick="doImport()">Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading & Toast -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- XLSX CDN para importación -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// FIREBASE CONFIG
+// ═══════════════════════════════════════════════════════
+var firebaseConfig = {
+  apiKey: "AIzaSyCUGGZAHApiMS0mh7aK_CaO72se4b6lw6Q",
+  authDomain: "crm-pixel-2b50b.firebaseapp.com",
+  projectId: "crm-pixel-2b50b",
+  storageBucket: "crm-pixel-2b50b.firebasestorage.app",
+  messagingSenderId: "662383849118",
+  appId: "1:662383849118:web:1e06282a066e9355bd158f"
+};
+firebase.initializeApp(firebaseConfig);
+var auth = firebase.auth();
+var db   = firebase.firestore();
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+var currentUser  = null;
+var clientes     = [];
+var servicios    = [];
+var cotizaciones = [];
+var cotItems     = [];    // items del modal activo
+var importRows   = [];
+var currentPage  = 'dashboard';
+
+// ═══════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════
+auth.onAuthStateChanged(function(u) {
+  if (u) {
+    currentUser = u;
+    document.getElementById('loginWrap').style.display  = 'none';
+    document.getElementById('appWrap').style.display    = 'flex';
+    var initials = (u.email || 'U')[0].toUpperCase();
+    document.getElementById('userAvatar').textContent = initials;
+    document.getElementById('userName').textContent   = u.email;
+    loadAll();
+  } else {
+    document.getElementById('loginWrap').style.display  = 'flex';
+    document.getElementById('appWrap').style.display    = 'none';
+  }
+});
+
+function doLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pass  = document.getElementById('loginPass').value;
+  var err   = document.getElementById('loginErr');
+  err.style.display = 'none';
+  auth.signInWithEmailAndPassword(email, pass).catch(function(e) {
+    err.textContent   = 'Credenciales incorrectas. Verifica tu correo y contraseña.';
+    err.style.display = 'block';
+  });
+}
+function doLogout() { auth.signOut(); }
+
+document.getElementById('loginPass').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ═══════════════════════════════════════════════════════
+// LOAD ALL DATA
+// ═══════════════════════════════════════════════════════
+function loadAll() {
+  showLoading();
+  var p1 = db.collection('clientes').orderBy('empresa').get().then(function(s) {
+    clientes = s.docs.map(function(d) { return Object.assign({id: d.id}, d.data()); });
+  });
+  var p2 = db.collection('servicios').orderBy('nombre').get().then(function(s) {
+    servicios = s.docs.map(function(d) { return Object.assign({id: d.id}, d.data()); });
+  });
+  var p3 = db.collection('cotizaciones').orderBy('fechaCreacion', 'desc').get().then(function(s) {
+    cotizaciones = s.docs.map(function(d) { return Object.assign({id: d.id}, d.data()); });
+  });
+  Promise.all([p1, p2, p3]).then(function() {
+    hideLoading();
+    navTo(currentPage);
+  }).catch(function(e) {
+    hideLoading();
+    showToast('Error cargando datos: ' + e.message, 'err');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function navTo(page) {
+  currentPage = page;
+  var pages = ['dashboard','cotizaciones','clientes','catalogo'];
+  pages.forEach(function(p) {
+    var el = document.getElementById('nav-' + p);
+    if (el) el.classList.toggle('active', p === page);
+  });
+  var titles = {
+    dashboard:    'Dashboard',
+    cotizaciones: 'Cotizaciones',
+    clientes:     'Clientes',
+    catalogo:     'Catálogo de Servicios'
+  };
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+  var content = document.getElementById('pageContent');
+  var actions = document.getElementById('topbarActions');
+  actions.innerHTML = '';
+
+  if (page === 'dashboard')    { renderDashboard(content, actions); }
+  if (page === 'cotizaciones') { renderCotizaciones(content, actions); }
+  if (page === 'clientes')     { renderClientes(content, actions); }
+  if (page === 'catalogo')     { renderCatalogo(content, actions); }
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+function renderDashboard(el, actions) {
+  var total     = cotizaciones.length;
+  var aceptadas = cotizaciones.filter(function(c) { return c.estado === 'Aceptada'; });
+  var enviadas  = cotizaciones.filter(function(c) { return c.estado === 'Enviada' || c.estado === 'En estudio'; });
+  var valorAcep = aceptadas.reduce(function(a, c) { return a + (c.total || 0); }, 0);
+  var valorPipe = enviadas.reduce(function(a, c)  { return a + (c.total || 0); }, 0);
+  var tasa      = total > 0 ? Math.round((aceptadas.length / total) * 100) : 0;
+
+  // últimas 5
+  var ultimas = cotizaciones.slice(0, 5);
+
+  el.innerHTML = '<div class="stats-grid">' +
+    statCard('TOTAL PROPUESTAS', total, '', '') +
+    statCard('ACEPTADAS', aceptadas.length, tasa + '% tasa de cierre', 'green') +
+    statCard('EN PIPELINE', enviadas.length, fmtCOP(valorPipe), 'yellow') +
+    statCard('VALOR ACEPTADO', fmtCOP(valorAcep), 'ingresos cerrados', 'accent') +
+    statCard('CLIENTES', clientes.length, 'registrados', '') +
+    statCard('SERVICIOS', servicios.length, 'en catálogo', '') +
+  '</div>' +
+  '<div class="table-wrap">' +
+    '<div class="table-header"><span style="font-size:13px;font-weight:600">Últimas cotizaciones</span>' +
+    '<button class="btn btn-ghost btn-sm" onclick="navTo(\'cotizaciones\')">Ver todas →</button></div>' +
+    '<table><thead><tr>' +
+    '<th>#</th><th>Tema</th><th>Cliente</th><th>Total</th><th>Fecha</th><th>Estado</th>' +
+    '</tr></thead><tbody>' +
+    ultimas.map(function(c) {
+      return '<tr>' +
+        '<td class="td-mono">' + (c.numero || '—') + '</td>' +
+        '<td>' + esc(c.tema || '') + '</td>' +
+        '<td>' + esc(c.clienteNombre || '') + '</td>' +
+        '<td class="td-mono">' + fmtCOP(c.total || 0) + '</td>' +
+        '<td class="td-mono">' + (c.fecha || '') + '</td>' +
+        '<td>' + badgeEstado(c.estado) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
+function statCard(label, val, sub, color) {
+  var cls = color ? 'stat-' + color : '';
+  return '<div class="stat-card">' +
+    '<div class="stat-label">' + label + '</div>' +
+    '<div class="stat-value ' + cls + '">' + val + '</div>' +
+    (sub ? '<div class="stat-sub">' + sub + '</div>' : '') +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════════════════
+// COTIZACIONES
+// ═══════════════════════════════════════════════════════
+function renderCotizaciones(el, actions) {
+  actions.innerHTML =
+    '<button class="btn btn-ghost btn-sm" onclick="openModal(\'modalImport\')">' +
+    '<svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>' +
+    'Importar historial</button>' +
+    '<button class="btn btn-primary" onclick="openModalCotizacion()">' +
+    '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>' +
+    'Nueva Cotización</button>';
+
+  var filtro = '';
+  var estadoFiltro = '';
+
+  function render(list) {
+    el.innerHTML = '<div class="table-wrap">' +
+      '<div class="table-header">' +
+        '<div class="search-box">' +
+          '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M21 21l-4.35-4.35"/></svg>' +
+          '<input id="cotSearch" placeholder="Buscar por tema, cliente..." value="' + esc(filtro) + '" oninput="filterCotizaciones(this.value)">' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          ['','Borrador','Enviada','En estudio','Aceptada','Rechazada'].map(function(s) {
+            var lbl = s || 'Todos';
+            return '<button class="btn btn-sm ' + (estadoFiltro === s ? 'btn-primary' : 'btn-ghost') + '" onclick="filterCotEstado(\'' + s + '\')">' + lbl + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      '<table><thead><tr>' +
+        '<th>#</th><th>Tema</th><th>Cliente / Para</th><th>Total</th><th>Fecha</th><th>Válida</th><th>Estado</th><th>Acciones</th>' +
+      '</tr></thead><tbody>' +
+      (list.length === 0 ? '<tr><td colspan="8"><div class="empty-state"><p>No hay cotizaciones. Crea la primera.</p></div></td></tr>' : '') +
+      list.map(function(c) {
+        return '<tr>' +
+          '<td class="td-mono" style="white-space:nowrap">' + esc(c.numero || '—') + '</td>' +
+          '<td style="max-width:260px">' + esc(c.tema || '') + '</td>' +
+          '<td>' + esc(c.clienteNombre || c.para || '') + '</td>' +
+          '<td class="td-mono">' + fmtCOP(c.total || 0) + '</td>' +
+          '<td class="td-mono">' + (c.fecha || '') + '</td>' +
+          '<td class="td-mono">' + (c.validez || '') + '</td>' +
+          '<td>' + badgeEstado(c.estado) + '</td>' +
+          '<td><div class="actions-cell">' +
+            '<button class="btn btn-ghost btn-sm" onclick="verCotizacion(\'' + c.id + '\')" title="Ver PDF">📄</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="editCotizacion(\'' + c.id + '\')" title="Editar">✏️</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="cambiarEstado(\'' + c.id + '\')" title="Estado">🔄</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="deleteCotizacion(\'' + c.id + '\')" title="Eliminar">🗑️</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
+
+  window.filterCotizaciones = function(val) {
+    filtro = val;
+    var list = cotizaciones.filter(function(c) {
+      var hay = estadoFiltro === '' || c.estado === estadoFiltro;
+      var q = val.toLowerCase();
+      return hay && ((c.tema || '').toLowerCase().includes(q) || (c.clienteNombre || '').toLowerCase().includes(q) || (c.numero || '').toLowerCase().includes(q));
+    });
+    render(list);
+  };
+
+  window.filterCotEstado = function(s) {
+    estadoFiltro = s;
+    filterCotizaciones(filtro);
+  };
+
+  render(cotizaciones);
+}
+
+// ─── Modal Cotización ───
+function openModalCotizacion(id) {
+  cotItems = [];
+  document.getElementById('cotId').value = '';
+  document.getElementById('cotTema').value   = '';
+  document.getElementById('cotPara').value   = '';
+  document.getElementById('cotNotas').value  = '';
+  document.getElementById('cotEstado').value = 'Borrador';
+
+  var today = new Date();
+  document.getElementById('cotFecha').value   = fmtDate(today);
+  var valid = new Date(today); valid.setDate(valid.getDate() + 7);
+  document.getElementById('cotValidez').value = fmtDate(valid);
+
+  // poblar select clientes
+  var sel = document.getElementById('cotCliente');
+  sel.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+    clientes.map(function(c) { return '<option value="' + c.id + '">' + esc(c.empresa) + '</option>'; }).join('');
+
+  document.getElementById('itemsContainer').innerHTML = '';
+  document.getElementById('modalCotTitle').textContent = 'Nueva Cotización';
+  calcTotales();
+  openModal('modalCotizacion');
+}
+
+function editCotizacion(id) {
+  var c = cotizaciones.find(function(x) { return x.id === id; });
+  if (!c) return;
+
+  cotItems = (c.items || []).map(function(i) { return Object.assign({}, i); });
+  document.getElementById('cotId').value     = id;
+  document.getElementById('cotTema').value   = c.tema || '';
+  document.getElementById('cotPara').value   = c.para || '';
+  document.getElementById('cotNotas').value  = c.notas || '';
+  document.getElementById('cotEstado').value = c.estado || 'Borrador';
+  document.getElementById('cotFecha').value  = c.fecha || '';
+  document.getElementById('cotValidez').value= c.validez || '';
+
+  var sel = document.getElementById('cotCliente');
+  sel.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+    clientes.map(function(cl) {
+      return '<option value="' + cl.id + '" ' + (cl.id === c.clienteId ? 'selected' : '') + '>' + esc(cl.empresa) + '</option>';
+    }).join('');
+
+  document.getElementById('modalCotTitle').textContent = 'Editar — ' + (c.numero || '');
+  renderItemRows();
+  openModal('modalCotizacion');
+}
+
+function onClienteChange() {
+  var id = document.getElementById('cotCliente').value;
+  var c = clientes.find(function(x) { return x.id === id; });
+  if (c && c.contacto) document.getElementById('cotPara').value = c.contacto;
+}
+
+// ─── Items ───
+function addItemRow(svc) {
+  cotItems.push({
+    nombre: svc ? svc.nombre : '',
+    descripcion: svc ? svc.descripcion : '',
+    cantidad: 1,
+    precio: svc ? svc.precio : 0,
+    iva: svc ? svc.iva : 19
+  });
+  renderItemRows();
+}
+
+function renderItemRows() {
+  var cont = document.getElementById('itemsContainer');
+  cont.innerHTML = cotItems.map(function(it, i) {
+    return '<div class="item-row" id="item-' + i + '">' +
+      '<div><input value="' + esc(it.nombre) + '" placeholder="Artículo" oninput="updateItem(' + i + ',\'nombre\',this.value)"></div>' +
+      '<div><textarea placeholder="Descripción" oninput="updateItem(' + i + ',\'descripcion\',this.value)">' + esc(it.descripcion) + '</textarea></div>' +
+      '<div><input type="number" value="' + it.cantidad + '" min="0" oninput="updateItem(' + i + ',\'cantidad\',parseFloat(this.value)||0)"></div>' +
+      '<div><input type="number" value="' + it.precio + '" min="0" oninput="updateItem(' + i + ',\'precio\',parseFloat(this.value)||0)"></div>' +
+      '<div><select onchange="updateItem(' + i + ',\'iva\',parseFloat(this.value))">' +
+        '<option value="0" ' + (it.iva===0?'selected':'') + '>Sin IVA</option>' +
+        '<option value="19" ' + (it.iva===19?'selected':'') + '>19%</option>' +
+      '</select></div>' +
+      '<div class="item-value" id="val-' + i + '">' + fmtCOP(it.cantidad * it.precio) + '</div>' +
+      '<button class="btn-remove-item" onclick="removeItem(' + i + ')">✕</button>' +
+    '</div>';
+  }).join('');
+  calcTotales();
+}
+
+function updateItem(i, field, val) {
+  cotItems[i][field] = val;
+  var v = document.getElementById('val-' + i);
+  if (v) v.textContent = fmtCOP(cotItems[i].cantidad * cotItems[i].precio);
+  calcTotales();
+}
+
+function removeItem(i) {
+  cotItems.splice(i, 1);
+  renderItemRows();
+}
+
+function calcTotales() {
+  var neto = cotItems.reduce(function(a, it) { return a + it.cantidad * it.precio; }, 0);
+  var iva  = cotItems.reduce(function(a, it) { return a + (it.iva > 0 ? it.cantidad * it.precio * (it.iva / 100) : 0); }, 0);
+  document.getElementById('totNeto').textContent  = fmtCOP(neto);
+  document.getElementById('totIva').textContent   = fmtCOP(iva);
+  document.getElementById('totTotal').textContent = fmtCOP(neto + iva);
+}
+
+// ─── Catálogo Picker ───
+function openCatalogoPicker() {
+  document.getElementById('pickerSearch').value = '';
+  filterPicker();
+  openModal('modalCatalogoPicker');
+}
+
+window.filterPicker = function() {
+  var q = document.getElementById('pickerSearch').value.toLowerCase();
+  var list = servicios.filter(function(s) {
+    return s.nombre.toLowerCase().includes(q) || (s.descripcion || '').toLowerCase().includes(q) || (s.categoria || '').toLowerCase().includes(q);
+  });
+  var grid = document.getElementById('pickerGrid');
+  if (list.length === 0) { grid.innerHTML = '<p style="color:var(--text2);font-size:13px">No hay servicios en el catálogo. Agrégalos primero en "Catálogo de Servicios".</p>'; return; }
+  grid.innerHTML = list.map(function(s) {
+    return '<div class="catalog-card" onclick="pickServicio(\'' + s.id + '\')">' +
+      '<div class="catalog-card-name">' + esc(s.nombre) + '</div>' +
+      (s.descripcion ? '<div class="catalog-card-desc">' + esc(s.descripcion) + '</div>' : '') +
+      '<div class="catalog-card-price">' + fmtCOP(s.precio) + ' / ' + (s.unidad || 'Unidad') + '</div>' +
+      '<div class="catalog-card-tax">IVA ' + (s.iva || 0) + '%' + (s.categoria ? ' · ' + s.categoria : '') + '</div>' +
+    '</div>';
+  }).join('');
+};
+
+function pickServicio(id) {
+  var s = servicios.find(function(x) { return x.id === id; });
+  if (s) addItemRow(s);
+  closeModal('modalCatalogoPicker');
+}
+
+// ─── Save Cotización ───
+function saveCotizacion() {
+  var tema = document.getElementById('cotTema').value.trim();
+  if (!tema) { showToast('El tema es obligatorio', 'err'); return; }
+
+  var clienteId  = document.getElementById('cotCliente').value;
+  var clienteObj = clientes.find(function(c) { return c.id === clienteId; });
+  var neto  = cotItems.reduce(function(a, it) { return a + it.cantidad * it.precio; }, 0);
+  var iva   = cotItems.reduce(function(a, it) { return a + (it.iva > 0 ? it.cantidad * it.precio * (it.iva / 100) : 0); }, 0);
+
+  var id = document.getElementById('cotId').value;
+  var data = {
+    tema:          tema,
+    clienteId:     clienteId,
+    clienteNombre: clienteObj ? clienteObj.empresa : '',
+    para:          document.getElementById('cotPara').value.trim(),
+    fecha:         document.getElementById('cotFecha').value,
+    validez:       document.getElementById('cotValidez').value,
+    estado:        document.getElementById('cotEstado').value,
+    notas:         document.getElementById('cotNotas').value.trim(),
+    items:         cotItems,
+    neto:          neto,
+    iva:           iva,
+    total:         neto + iva,
+    updatedAt:     firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  showLoading();
+  var promise;
+  if (id) {
+    promise = db.collection('cotizaciones').doc(id).update(data);
+  } else {
+    data.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
+    // generar número
+    var nums = cotizaciones.map(function(c) {
+      var m = (c.numero || '').match(/\d+/);
+      return m ? parseInt(m[0]) : 0;
+    });
+    var next = (Math.max.apply(null, nums.concat([0])) + 1);
+    data.numero = 'PRO-' + String(next).padStart(6, '0');
+    promise = db.collection('cotizaciones').add(data);
+  }
+
+  promise.then(function() {
+    closeModal('modalCotizacion');
+    showToast('Cotización guardada', 'ok');
+    return loadAll();
+  }).catch(function(e) {
+    hideLoading();
+    showToast('Error: ' + e.message, 'err');
+  });
+}
+
+function deleteCotizacion(id) {
+  if (!confirm('¿Eliminar esta cotización?')) return;
+  showLoading();
+  db.collection('cotizaciones').doc(id).delete().then(function() {
+    showToast('Cotización eliminada', 'ok');
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+function cambiarEstado(id) {
+  var c = cotizaciones.find(function(x) { return x.id === id; });
+  if (!c) return;
+  var estados = ['Borrador','Enviada','En estudio','Aceptada','Rechazada'];
+  var nuevo = prompt('Estado actual: ' + c.estado + '\nNuevo estado (' + estados.join(' / ') + '):', c.estado);
+  if (!nuevo || !estados.includes(nuevo)) return;
+  showLoading();
+  db.collection('cotizaciones').doc(id).update({ estado: nuevo }).then(function() {
+    showToast('Estado actualizado', 'ok');
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+// ─── PDF / Vista previa ───
+function verCotizacion(id) {
+  var c = cotizaciones.find(function(x) { return x.id === id; });
+  if (!c) return;
+  var clienteObj = clientes.find(function(x) { return x.id === c.clienteId; }) || {};
+  document.getElementById('pdfTitle').textContent = (c.numero || '') + ' — ' + (c.tema || '');
+  document.getElementById('pdfBody').innerHTML = buildPDFHtml(c, clienteObj);
+  openModal('modalPDF');
+}
+
+function buildPDFHtml(c, cl) {
+  var items = (c.items || []).map(function(it, i) {
+    var val = it.cantidad * it.precio;
+    return '<tr>' +
+      '<td style="padding:10px 8px;vertical-align:top;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:600;width:32px">' + (i+1) + '</td>' +
+      '<td style="padding:10px 8px;vertical-align:top;border-bottom:1px solid #e5e7eb">' +
+        '<div style="font-weight:600;font-size:13px;margin-bottom:4px">' + esc(it.nombre) + '</div>' +
+        (it.descripcion ? '<div style="font-size:12px;color:#6b7280;white-space:pre-line">' + esc(it.descripcion) + '</div>' : '') +
+      '</td>' +
+      '<td style="padding:10px 8px;vertical-align:top;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;font-size:13px">' + it.cantidad + '</td>' +
+      '<td style="padding:10px 8px;vertical-align:top;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;font-size:13px">' + fmtCOP(it.precio) + '</td>' +
+      '<td style="padding:10px 8px;vertical-align:top;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px">' + (it.iva > 0 ? 'IVA ' + it.iva + '%' : 'Sin IVA') + '</td>' +
+      '<td style="padding:10px 8px;vertical-align:top;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;white-space:nowrap;font-size:13px">' + fmtCOP(val) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div id="pdfDocument" style="background:#fff;color:#111;font-family:Arial,sans-serif;padding:40px;max-width:800px;margin:0 auto;border-radius:8px">' +
+    // Encabezado
+    '<table style="width:100%;margin-bottom:32px"><tr>' +
+      '<td style="vertical-align:top">' +
+        '<img src="https://pixelgraphicsas.github.io/tc-monitor/logo.png" style="height:52px;margin-bottom:8px"><br>' +
+        '<div style="font-size:12px;color:#374151"><strong>PIXEL GRAPHIC S.A.S</strong><br>' +
+        '1a # 65 - 10 - 201 Barrio Mallorca<br>Medellín Antioquia<br>Colombia 050024<br>NIT: 900428247-5</div>' +
+      '</td>' +
+      '<td style="text-align:right;vertical-align:top">' +
+        '<div style="font-size:12px;color:#374151"><strong>Para</strong><br>' +
+        '<strong style="font-size:14px">' + esc(c.para || cl.contacto || '') + '</strong><br>' +
+        (cl.empresa ? esc(cl.empresa) + '<br>' : '') +
+        (cl.direccion ? esc(cl.direccion) + '<br>' : '') +
+        (cl.ciudad ? esc(cl.ciudad) + '<br>' : '') +
+        (cl.telefono ? esc(cl.telefono) + '<br>' : '') +
+        (cl.email ? esc(cl.email) : '') +
+        '</div>' +
+      '</td>' +
+    '</tr></table>' +
+    // Número y título
+    '<div style="margin-bottom:24px">' +
+      '<div style="font-size:20px;font-weight:700;margin-bottom:4px"># ' + esc(c.numero || '—') + '</div>' +
+      '<div style="font-size:14px;font-weight:600;color:#374151">' + esc(c.tema || '') + '</div>' +
+      '<div style="font-size:12px;color:#6b7280;margin-top:8px">Fecha: ' + (c.fecha || '') + ' &nbsp;·&nbsp; Válida hasta: ' + (c.validez || '') + '</div>' +
+    '</div>' +
+    // Saludo
+    '<div style="margin-bottom:20px">' +
+      '<div style="color:#C87941;font-weight:600;margin-bottom:6px">Amable Saludo</div>' +
+      '<div style="font-size:13px;color:#374151">Es un placer para nosotros poner a su disposición nuestros servicios y productos.</div>' +
+    '</div>' +
+    // Tabla items
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:24px">' +
+      '<thead><tr style="background:#1a1a2e">' +
+        '<th style="padding:10px 8px;text-align:left;color:#fff;font-size:12px;width:32px">#</th>' +
+        '<th style="padding:10px 8px;text-align:left;color:#fff;font-size:12px">Artículo</th>' +
+        '<th style="padding:10px 8px;text-align:center;color:#fff;font-size:12px">Cantidad</th>' +
+        '<th style="padding:10px 8px;text-align:right;color:#fff;font-size:12px">Precio</th>' +
+        '<th style="padding:10px 8px;text-align:center;color:#fff;font-size:12px">Impuesto</th>' +
+        '<th style="padding:10px 8px;text-align:right;color:#fff;font-size:12px">Valor</th>' +
+      '</tr></thead><tbody>' + items + '</tbody></table>' +
+    // Totales
+    '<table style="width:100%;margin-bottom:24px"><tr><td></td>' +
+      '<td style="text-align:right;padding-right:20px">' +
+        '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;font-size:13px">' +
+          '<span style="color:#6b7280;margin-right:32px">Total neto</span><span style="font-weight:600">' + fmtCOP(c.neto||0) + '</span></div>' +
+        '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;font-size:13px">' +
+          '<span style="color:#6b7280;margin-right:32px">IVA (19%)</span><span style="font-weight:600">' + fmtCOP(c.iva||0) + '</span></div>' +
+        '<div style="display:flex;justify-content:flex-end;padding-top:8px;border-top:2px solid #111;font-size:15px;font-weight:700">' +
+          '<span style="margin-right:32px">Total</span><span>' + fmtCOP(c.total||0) + '</span></div>' +
+      '</td></tr></table>' +
+    // Notas
+    (c.notas ? '<div style="background:#f9fafb;border-radius:6px;padding:14px;font-size:12px;color:#374151"><strong>Notas:</strong><br>' + esc(c.notas) + '</div>' : '') +
+    '<div style="margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Pixel Graphic S.A.S · NIT 900428247-5 · Medellín, Colombia</div>' +
+  '</div>';
+}
+
+function printPDF() {
+  var el = document.getElementById('pdfDocument');
+  if (!el) return;
+  var w = window.open('','_blank');
+  w.document.write('<html><head><title>Cotización</title><style>body{margin:0;padding:0;font-family:Arial,sans-serif}@media print{body{margin:0}}</style></head><body>');
+  w.document.write(el.outerHTML);
+  w.document.write('</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(function() { w.print(); }, 400);
+}
+
+// ═══════════════════════════════════════════════════════
+// CLIENTES
+// ═══════════════════════════════════════════════════════
+function renderClientes(el, actions) {
+  actions.innerHTML = '<button class="btn btn-primary" onclick="openModalCliente()">' +
+    '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>' +
+    'Nuevo Cliente</button>';
+
+  var filtro = '';
+  function render(list) {
+    el.innerHTML = '<div class="table-wrap">' +
+      '<div class="table-header">' +
+        '<div class="search-box">' +
+          '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M21 21l-4.35-4.35"/></svg>' +
+          '<input placeholder="Buscar cliente..." oninput="filterClientes(this.value)">' +
+        '</div>' +
+        '<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">' + list.length + ' clientes</span>' +
+      '</div>' +
+      '<table><thead><tr>' +
+        '<th>Empresa</th><th>Contacto</th><th>Email</th><th>Teléfono</th><th>Ciudad</th><th>Cotizaciones</th><th>Acciones</th>' +
+      '</tr></thead><tbody>' +
+      (list.length === 0 ? '<tr><td colspan="7"><div class="empty-state"><p>Sin clientes. Agrega el primero.</p></div></td></tr>' : '') +
+      list.map(function(c) {
+        var ncots = cotizaciones.filter(function(x) { return x.clienteId === c.id; }).length;
+        return '<tr>' +
+          '<td style="font-weight:500">' + esc(c.empresa) + '</td>' +
+          '<td>' + esc(c.contacto || '') + (c.cargo ? '<br><span style="font-size:11px;color:var(--text3)">' + esc(c.cargo) + '</span>' : '') + '</td>' +
+          '<td class="td-mono" style="font-size:12px">' + esc(c.email || '') + '</td>' +
+          '<td class="td-mono" style="font-size:12px">' + esc(c.telefono || '') + '</td>' +
+          '<td>' + esc(c.ciudad || '') + '</td>' +
+          '<td><span class="badge badge-blue">' + ncots + '</span></td>' +
+          '<td><div class="actions-cell">' +
+            '<button class="btn btn-ghost btn-sm" onclick="editCliente(\'' + c.id + '\')">✏️</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="deleteCliente(\'' + c.id + '\')">🗑️</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
+
+  window.filterClientes = function(val) {
+    filtro = val;
+    var q = val.toLowerCase();
+    render(clientes.filter(function(c) {
+      return (c.empresa || '').toLowerCase().includes(q) || (c.contacto || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q);
+    }));
+  };
+
+  render(clientes);
+}
+
+function openModalCliente() {
+  ['clienteId','cliEmpresa','cliContacto','cliCargo','cliEmail','cliTel','cliNit','cliCiudad','cliDir','cliNotas'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('modalClienteTitle').textContent = 'Nuevo Cliente';
+  openModal('modalCliente');
+}
+
+function editCliente(id) {
+  var c = clientes.find(function(x) { return x.id === id; });
+  if (!c) return;
+  document.getElementById('clienteId').value  = id;
+  document.getElementById('cliEmpresa').value = c.empresa || '';
+  document.getElementById('cliContacto').value= c.contacto || '';
+  document.getElementById('cliCargo').value   = c.cargo || '';
+  document.getElementById('cliEmail').value   = c.email || '';
+  document.getElementById('cliTel').value     = c.telefono || '';
+  document.getElementById('cliNit').value     = c.nit || '';
+  document.getElementById('cliCiudad').value  = c.ciudad || '';
+  document.getElementById('cliDir').value     = c.direccion || '';
+  document.getElementById('cliNotas').value   = c.notas || '';
+  document.getElementById('modalClienteTitle').textContent = 'Editar — ' + c.empresa;
+  openModal('modalCliente');
+}
+
+function saveCliente() {
+  var empresa = document.getElementById('cliEmpresa').value.trim();
+  if (!empresa) { showToast('El nombre de la empresa es obligatorio', 'err'); return; }
+  var id = document.getElementById('clienteId').value;
+  var data = {
+    empresa:   empresa,
+    contacto:  document.getElementById('cliContacto').value.trim(),
+    cargo:     document.getElementById('cliCargo').value.trim(),
+    email:     document.getElementById('cliEmail').value.trim(),
+    telefono:  document.getElementById('cliTel').value.trim(),
+    nit:       document.getElementById('cliNit').value.trim(),
+    ciudad:    document.getElementById('cliCiudad').value.trim(),
+    direccion: document.getElementById('cliDir').value.trim(),
+    notas:     document.getElementById('cliNotas').value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  showLoading();
+  var promise = id ? db.collection('clientes').doc(id).update(data) : db.collection('clientes').add(Object.assign(data, {creadoEn: firebase.firestore.FieldValue.serverTimestamp()}));
+  promise.then(function() {
+    closeModal('modalCliente');
+    showToast('Cliente guardado', 'ok');
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+function deleteCliente(id) {
+  if (!confirm('¿Eliminar este cliente?')) return;
+  showLoading();
+  db.collection('clientes').doc(id).delete().then(function() {
+    showToast('Cliente eliminado', 'ok');
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+// ═══════════════════════════════════════════════════════
+// CATÁLOGO
+// ═══════════════════════════════════════════════════════
+function renderCatalogo(el, actions) {
+  actions.innerHTML = '<button class="btn btn-primary" onclick="openModalServicio()">' +
+    '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>' +
+    'Nuevo Servicio</button>';
+
+  var filtro = '';
+  function render(list) {
+    el.innerHTML = '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">' +
+      '<div class="search-box" style="flex:1;max-width:320px">' +
+        '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M21 21l-4.35-4.35"/></svg>' +
+        '<input placeholder="Buscar servicio..." oninput="filterServicios(this.value)">' +
+      '</div>' +
+      '<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">' + list.length + ' servicios</span>' +
+    '</div>' +
+    (list.length === 0
+      ? '<div class="empty-state"><p>Sin servicios en el catálogo.</p><p style="font-size:12px">Agrega los servicios que ofrece Pixel para reutilizarlos en cotizaciones.</p><button class="btn btn-primary" onclick="openModalServicio()">Agregar primer servicio</button></div>'
+      : '<div class="catalog-grid">' +
+          list.map(function(s) {
+            return '<div class="catalog-card" style="cursor:default">' +
+              '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">' +
+                '<div class="catalog-card-name">' + esc(s.nombre) + '</div>' +
+                '<div style="display:flex;gap:4px">' +
+                  '<button class="btn btn-ghost btn-sm" onclick="editServicio(\'' + s.id + '\')">✏️</button>' +
+                  '<button class="btn btn-ghost btn-sm" onclick="deleteServicio(\'' + s.id + '\')">🗑️</button>' +
+                '</div>' +
+              '</div>' +
+              (s.categoria ? '<span class="tag">' + esc(s.categoria) + '</span><br style="margin-bottom:6px">' : '') +
+              (s.descripcion ? '<div class="catalog-card-desc" style="-webkit-line-clamp:3">' + esc(s.descripcion) + '</div>' : '') +
+              '<div class="catalog-card-price">' + fmtCOP(s.precio) + ' / ' + (s.unidad || 'Unidad') + '</div>' +
+              '<div class="catalog-card-tax">IVA ' + (s.iva || 0) + '%</div>' +
+            '</div>';
+          }).join('') +
+        '</div>'
+    );
+  }
+
+  window.filterServicios = function(val) {
+    filtro = val;
+    var q = val.toLowerCase();
+    render(servicios.filter(function(s) {
+      return (s.nombre || '').toLowerCase().includes(q) || (s.categoria || '').toLowerCase().includes(q) || (s.descripcion || '').toLowerCase().includes(q);
+    }));
+  };
+
+  render(servicios);
+}
+
+function openModalServicio() {
+  ['servicioId','svcNombre','svcDesc','svcPrecio','svcCategoria'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('svcIva').value = '19';
+  document.getElementById('svcUnidad').value = 'Unidad';
+  document.getElementById('modalServicioTitle').textContent = 'Nuevo Servicio';
+  openModal('modalServicio');
+}
+
+function editServicio(id) {
+  var s = servicios.find(function(x) { return x.id === id; });
+  if (!s) return;
+  document.getElementById('servicioId').value  = id;
+  document.getElementById('svcNombre').value   = s.nombre || '';
+  document.getElementById('svcDesc').value     = s.descripcion || '';
+  document.getElementById('svcPrecio').value   = s.precio || 0;
+  document.getElementById('svcIva').value      = String(s.iva || 19);
+  document.getElementById('svcCategoria').value= s.categoria || '';
+  document.getElementById('svcUnidad').value   = s.unidad || 'Unidad';
+  document.getElementById('modalServicioTitle').textContent = 'Editar — ' + s.nombre;
+  openModal('modalServicio');
+}
+
+function saveServicio() {
+  var nombre = document.getElementById('svcNombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio', 'err'); return; }
+  var id = document.getElementById('servicioId').value;
+  var data = {
+    nombre:      nombre,
+    descripcion: document.getElementById('svcDesc').value.trim(),
+    precio:      parseFloat(document.getElementById('svcPrecio').value) || 0,
+    iva:         parseFloat(document.getElementById('svcIva').value) || 0,
+    categoria:   document.getElementById('svcCategoria').value.trim(),
+    unidad:      document.getElementById('svcUnidad').value,
+    updatedAt:   firebase.firestore.FieldValue.serverTimestamp()
+  };
+  showLoading();
+  var promise = id ? db.collection('servicios').doc(id).update(data) : db.collection('servicios').add(Object.assign(data, {creadoEn: firebase.firestore.FieldValue.serverTimestamp()}));
+  promise.then(function() {
+    closeModal('modalServicio');
+    showToast('Servicio guardado', 'ok');
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+function deleteServicio(id) {
+  if (!confirm('¿Eliminar este servicio del catálogo?')) return;
+  showLoading();
+  db.collection('servicios').doc(id).delete().then(function() {
+    showToast('Servicio eliminado', 'ok');
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+// ═══════════════════════════════════════════════════════
+// IMPORTAR HISTORIAL (Excel)
+// ═══════════════════════════════════════════════════════
+function previewImport() {
+  var file = document.getElementById('importFile').files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var wb = XLSX.read(e.target.result, { type:'binary' });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+    // limpiar header row si existe
+    importRows = rows.filter(function(r) {
+      var keys = Object.keys(r);
+      return keys.some(function(k) { return (r[k] + '').match(/PRO-/); });
+    });
+    if (importRows.length === 0) {
+      // intentar sin filtro
+      importRows = rows.slice(1);
+    }
+    // normalizar columnas
+    importRows = importRows.map(function(r) {
+      var keys = Object.keys(r);
+      return {
+        numero:        r[keys[0]] || r['Propuesta #'] || '',
+        tema:          r[keys[1]] || r['Tema'] || '',
+        para:          r[keys[2]] || r['Para'] || '',
+        total:         parseFloat((r[keys[3]] || r['Total'] || '0').toString().replace(/[^0-9.]/g,'')) || 0,
+        fecha:         r[keys[4]] || r['Fecha'] || '',
+        validez:       r[keys[5]] || r['Valida hasta'] || '',
+        estado:        r[keys[8]] || r['Estado'] || 'Historial',
+        fechaCreacion: null,
+        importado:     true
+      };
+    }).filter(function(r) { return r.numero && String(r.numero).includes('PRO'); });
+
+    var prev = document.getElementById('importPreview');
+    prev.innerHTML = '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Se importarán <strong style="color:var(--text)">' + importRows.length + ' propuestas</strong></p>' +
+      '<div class="import-preview"><table style="width:100%;border-collapse:collapse"><thead><tr>' +
+        '<th style="padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">#</th>' +
+        '<th style="padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">Tema</th>' +
+        '<th style="padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">Para</th>' +
+        '<th style="padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:right;border-bottom:1px solid var(--border)">Total</th>' +
+        '<th style="padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">Estado</th>' +
+      '</tr></thead><tbody>' +
+      importRows.slice(0,20).map(function(r) {
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:5px 10px;font-family:var(--mono);font-size:11px">' + esc(r.numero) + '</td>' +
+          '<td style="padding:5px 10px;font-size:12px">' + esc(r.tema) + '</td>' +
+          '<td style="padding:5px 10px;font-size:12px">' + esc(r.para) + '</td>' +
+          '<td style="padding:5px 10px;font-family:var(--mono);font-size:11px;text-align:right">' + fmtCOP(r.total) + '</td>' +
+          '<td style="padding:5px 10px">' + badgeEstado(r.estado) + '</td>' +
+        '</tr>';
+      }).join('') +
+      (importRows.length > 20 ? '<tr><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--text3)">... y ' + (importRows.length - 20) + ' más</td></tr>' : '') +
+      '</tbody></table></div>';
+    document.getElementById('btnDoImport').style.display = 'inline-flex';
+  };
+  reader.readAsBinaryString(file);
+}
+
+function doImport() {
+  if (!importRows.length) return;
+  showLoading();
+  var batch = db.batch();
+  importRows.forEach(function(r) {
+    var ref = db.collection('cotizaciones').doc();
+    batch.set(ref, {
+      numero:        r.numero,
+      tema:          r.tema,
+      clienteNombre: r.para,
+      para:          r.para,
+      total:         r.total,
+      neto:          r.total,
+      iva:           0,
+      fecha:         r.fecha,
+      validez:       r.validez,
+      estado:        r.estado || 'Historial',
+      items:         [],
+      importado:     true,
+      fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  });
+  batch.commit().then(function() {
+    closeModal('modalImport');
+    showToast(importRows.length + ' propuestas importadas', 'ok');
+    importRows = [];
+    return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showLoading() { document.getElementById('loadingOverlay').classList.add('show'); }
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show toast-' + (type || 'ok');
+  setTimeout(function() { t.classList.remove('show'); }, 3200);
+}
+
+function fmtCOP(n) {
+  if (n === undefined || n === null || isNaN(n)) return '$0';
+  return '$' + Math.round(n).toLocaleString('es-CO');
+}
+
+function fmtDate(d) {
+  var y = d.getFullYear();
+  var m = String(d.getMonth()+1).padStart(2,'0');
+  var day = String(d.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + day;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function badgeEstado(s) {
+  var map = {
+    'Borrador':   'badge-gray',
+    'Enviada':    'badge-blue',
+    'En estudio': 'badge-yellow',
+    'Aceptada':   'badge-green',
+    'Rechazada':  'badge-red',
+    'Historial':  'badge-gold',
+    'Abierta':    'badge-blue'
+  };
+  return '<span class="badge ' + (map[s] || 'badge-gray') + '">' + esc(s || 'Borrador') + '</span>';
+}
+
+// cerrar modales con click fuera
+document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('open');
+    }
+  });
+});
+</script>
+</body>
+</html>
