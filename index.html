@@ -736,6 +736,9 @@ option { background:var(--surface2); }
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- jsPDF + html2canvas para descarga PDF directa -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- XLSX CDN para importación -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -1215,7 +1218,7 @@ function buildPDFHtml(c, cl) {
     // Encabezado
     '<table style="width:100%;margin-bottom:32px"><tr>' +
       '<td style="vertical-align:top">' +
-        '<img src="https://pixelgraphicsas.github.io/crm-pixel/Logo.png" style="height:52px;margin-bottom:8px"><br>' +
+        '<img src="https://pixelgraphicsas.github.io/crm-pixel/Logo-2.png" style="height:60px;margin-bottom:8px"><br>' +
         '<div style="font-size:12px;color:#374151"><strong>PIXEL GRAPHIC S.A.S</strong><br>' +
         '1a # 65 - 10 - 201 Barrio Mallorca<br>Medellín Antioquia<br>Colombia 050024<br>NIT: 900428247-5</div>' +
       '</td>' +
@@ -1284,23 +1287,66 @@ function downloadPDF(id) {
   var cot = cotizaciones.find(function(x) { return x.id === id; });
   if (!cot) return;
   var clienteObj = clientes.find(function(x) { return x.id === cot.clienteId; }) || {};
-  var htmlContent = buildPDFHtml(cot, clienteObj);
-  var filename = (cot.numero || 'cotizacion').replace(/[^a-zA-Z0-9-]/g, '_') + '_' + (cot.clienteNombre || cot.para || '').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20) + '.html';
-  var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + (cot.numero || 'Cotizacion') + '</title>' +
-    '<style>body{margin:0;padding:20px;font-family:Arial,sans-serif;background:#fff}' +
-    '@media print{body{margin:0;padding:0}@page{margin:15mm}}' +
-    '</style></head><body>' + htmlContent +
-    '<script>window.onload=function(){window.print();}<\/script></body></html>';
-  var blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
-  var url  = URL.createObjectURL(blob);
-  var a    = document.createElement('a');
-  a.href     = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('Descargando ' + (cot.numero || '') + '...', 'ok');
+  var filename = (cot.numero || 'COT') + '_' + (cot.clienteNombre || cot.para || '').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 25) + '.pdf';
+
+  showToast('Generando PDF...', 'ok');
+
+  var container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;z-index:-1';
+  container.innerHTML = buildPDFHtml(cot, clienteObj);
+  document.body.appendChild(container);
+
+  var imgs = container.querySelectorAll('img');
+  var imgPromises = Array.from(imgs).map(function(img) {
+    return new Promise(function(resolve) {
+      if (img.complete) { resolve(); }
+      else { img.onload = resolve; img.onerror = resolve; }
+    });
+  });
+
+  Promise.all(imgPromises).then(function() {
+    return html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      width: 800,
+      logging: false
+    });
+  }).then(function(canvas) {
+    document.body.removeChild(container);
+    var imgData = canvas.toDataURL('image/jpeg', 0.95);
+    var jsPDF   = window.jspdf.jsPDF;
+    var pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    var margin  = 10;
+    var pageW   = pdf.internal.pageSize.getWidth();
+    var pageH   = pdf.internal.pageSize.getHeight();
+    var usableW = pageW - margin * 2;
+    var usableH = (canvas.height * usableW) / canvas.width;
+
+    if (usableH <= pageH - margin * 2) {
+      pdf.addImage(imgData, 'JPEG', margin, margin, usableW, usableH);
+    } else {
+      var pageImgH = Math.floor(((pageH - margin * 2) * canvas.width) / usableW);
+      var totalPages = Math.ceil(canvas.height / pageImgH);
+      for (var p = 0; p < totalPages; p++) {
+        if (p > 0) pdf.addPage();
+        var srcY = p * pageImgH;
+        var srcH = Math.min(pageImgH, canvas.height - srcY);
+        var tmpC = document.createElement('canvas');
+        tmpC.width  = canvas.width;
+        tmpC.height = srcH;
+        tmpC.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+        pdf.addImage(tmpC.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, usableW, (srcH * usableW) / canvas.width);
+      }
+    }
+
+    pdf.save(filename);
+    showToast('Descargado: ' + filename, 'ok');
+  }).catch(function(e) {
+    if (container.parentNode) document.body.removeChild(container);
+    showToast('Error: ' + e.message, 'err');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
