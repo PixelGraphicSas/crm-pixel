@@ -1041,61 +1041,47 @@ function drawChart(allCots) {
   if (!canvas) return;
   if (dashChart) { dashChart.destroy(); dashChart = null; }
 
-  // Paleta interanual: año actual azul sólido, anteriores difuminados
-  // Orden: 2026 azul, 2025 amarillo, 2024 verde, 2023 rojo, otros morado
-  var yearColors = {
-    solid:  ['#4f8ef7', '#D29922', '#3FB950', '#F85149', '#BC8CFF'],
-    faded:  ['rgba(79,142,247,0.20)', 'rgba(210,153,34,0.15)', 'rgba(63,185,80,0.15)', 'rgba(248,81,73,0.15)', 'rgba(188,140,255,0.15)'],
-    point:  ['#4f8ef7', '#D29922', '#3FB950', '#F85149', '#BC8CFF']
-  };
+  // ─── Paleta fija por año (siempre el mismo color para cada año) ───
+  // Colores base: se usan al 100% para el año protagonista, 40% para los demás
+  var paletaBase = [
+    { r:79,  g:142, b:247 },  // azul    — año más reciente
+    { r:210, g:153, b:34  },  // amarillo — año -1
+    { r:63,  g:185, b:80  },  // verde    — año -2
+    { r:248, g:81,  b:73  },  // rojo     — año -3
+    { r:188, g:140, b:255 },  // morado   — año -4+
+  ];
 
-  // Obtener todos los años con datos
+  function rgba(p, a) { return 'rgba('+p.r+','+p.g+','+p.b+','+a+')'; }
+
+  // Obtener todos los años con datos (desc: más reciente primero)
   var allYears = {};
-  allCots.forEach(function(c) {
-    if (c.fecha) allYears[new Date(c.fecha).getFullYear()] = 1;
+  allCots.forEach(function(cot) {
+    if (cot.fecha) allYears[new Date(cot.fecha).getFullYear()] = 1;
   });
-  var years = Object.keys(allYears).map(Number).sort().reverse(); // desc: más reciente primero
-
-  // Si hay filtro de año, mostrar solo ese año (sin comparativo)
-  if (yearFilterVal !== 'todos') {
-    years = [parseInt(yearFilterVal)];
-  }
+  var years = Object.keys(allYears).map(Number).sort().reverse();
 
   if (years.length === 0 || allCots.length === 0) {
     canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
     return;
   }
 
-  // Eje X = meses del período seleccionado (Ene..Dic o los meses del rango)
-  var range    = getDashRange();
-  var fromM    = range.from.getMonth();
-  var toM      = range.to.getMonth();
-  var fromY    = range.from.getFullYear();
-  var toY      = range.to.getFullYear();
-  var meses    = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  // Año protagonista: el seleccionado en el filtro, o el más reciente si es "todos"
+  var currentYear  = new Date().getFullYear();
+  var protagonista = yearFilterVal !== 'todos' ? parseInt(yearFilterVal) : currentYear;
 
-  // Construir labels de meses (eje X = meses del año, 1-12)
-  // Para comparativo interanual el eje siempre muestra los meses del período base
-  var monthKeys = [];
-  if (dashPeriodo === 'anio' || yearFilterVal === 'todos') {
-    // Mostrar todos los meses del año
-    for (var m = 0; m < 12; m++) monthKeys.push(m);
-  } else {
-    // Mostrar solo meses del rango
-    for (var m = fromM; m <= toM; m++) monthKeys.push(m);
-  }
-  var labels = monthKeys.map(function(m) { return meses[m]; });
+  // Meses eje X — siempre los 12 para comparativo interanual
+  var meses     = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var monthKeys = [0,1,2,3,4,5,6,7,8,9,10,11];
+  var labels    = meses;
 
-  // Función para agrupar cotizaciones de un año dado por mes
   function bucketsForYear(yr) {
     var b = {};
-    monthKeys.forEach(function(m) { b[m] = { cantidad: 0, valor: 0, aceptadas: 0 }; });
+    monthKeys.forEach(function(m) { b[m] = { cantidad:0, valor:0, aceptadas:0 }; });
     allCots.forEach(function(cot) {
       if (!cot.fecha) return;
       var d = new Date(cot.fecha);
       if (d.getFullYear() !== yr) return;
       var m = d.getMonth();
-      if (!b[m]) return;
       b[m].cantidad++;
       b[m].valor += (cot.total || 0);
       if (cot.estado === 'Aceptada') b[m].aceptadas++;
@@ -1103,16 +1089,27 @@ function drawChart(allCots) {
     return b;
   }
 
-  // Construir datasets — un par (total + aceptadas) por año
-  // Año más reciente = color sólido + área rellena. Anteriores = difuminados + línea punteada aceptadas
   var datasets = [];
-  var currentYear = new Date().getFullYear();
 
-  years.forEach(function(yr, idx) {
-    var colorIdx = idx % yearColors.solid.length;
+  // Ordenar: protagonista primero (se dibuja encima), luego el resto
+  var yearsOrdered = years.slice().sort(function(a,b) {
+    if (a === protagonista) return -1;
+    if (b === protagonista) return 1;
+    return b - a;
+  });
+
+  yearsOrdered.forEach(function(yr) {
+    var idx      = years.indexOf(yr);            // índice fijo por año para color consistente
+    var colorIdx = idx % paletaBase.length;
+    var p        = paletaBase[colorIdx];
+    var isProta  = yr === protagonista;
+
+    // Opacidades: protagonista 100%, resto 40%
+    var lineAlpha  = isProta ? 1.0  : 0.35;
+    var pointAlpha = isProta ? 1.0  : 0.35;
+    var fillAlpha  = isProta ? 0.10 : 0.0;
+
     var bkt      = bucketsForYear(yr);
-    var isCurrent = yr === currentYear;
-
     var dataMain = monthKeys.map(function(m) {
       return chartMode === 'cantidad' ? bkt[m].cantidad : bkt[m].valor;
     });
@@ -1122,34 +1119,38 @@ function drawChart(allCots) {
         : bkt[m].aceptadas * (bkt[m].valor / (bkt[m].cantidad || 1));
     });
 
-    // Serie principal (total)
+    // Serie total — línea continua
     datasets.push({
-      label: (chartMode === 'cantidad' ? 'Total ' : 'Valor ') + yr,
-      data:  dataMain,
-      borderColor:       yearColors.solid[colorIdx],
-      backgroundColor:   isCurrent ? 'rgba(79,142,247,0.08)' : yearColors.faded[colorIdx],
-      borderWidth:       isCurrent ? 2.5 : 1.8,
-      pointBackgroundColor: yearColors.solid[colorIdx],
-      pointRadius:       isCurrent ? 4 : 3,
-      pointHoverRadius:  6,
-      tension:           0.4,
-      fill:              isCurrent,
-      borderDash:        []
+      label:               (chartMode === 'cantidad' ? 'Total ' : 'Valor ') + yr,
+      data:                dataMain,
+      borderColor:         rgba(p, lineAlpha),
+      backgroundColor:     rgba(p, fillAlpha),
+      borderWidth:         isProta ? 3 : 1.5,
+      pointBackgroundColor: rgba(p, pointAlpha),
+      pointBorderColor:    rgba(p, pointAlpha),
+      pointRadius:         isProta ? 4 : 2.5,
+      pointHoverRadius:    6,
+      tension:             0.4,
+      fill:                isProta,
+      borderDash:          [],
+      order:               isProta ? 0 : 1
     });
 
-    // Serie aceptadas (punteada)
+    // Serie aceptadas — línea punteada, mismo color
     datasets.push({
-      label: 'Aceptadas ' + yr,
-      data:  dataAcep,
-      borderColor:       yearColors.solid[colorIdx],
-      backgroundColor:   'transparent',
-      borderWidth:       isCurrent ? 1.8 : 1.4,
-      pointBackgroundColor: yearColors.solid[colorIdx],
-      pointRadius:       isCurrent ? 3 : 2,
-      pointHoverRadius:  5,
-      tension:           0.4,
-      fill:              false,
-      borderDash:        [5, 4]
+      label:               'Aceptadas ' + yr,
+      data:                dataAcep,
+      borderColor:         rgba(p, lineAlpha * 0.85),
+      backgroundColor:     'transparent',
+      borderWidth:         isProta ? 2 : 1.2,
+      pointBackgroundColor: rgba(p, pointAlpha * 0.85),
+      pointBorderColor:    rgba(p, pointAlpha * 0.85),
+      pointRadius:         isProta ? 3 : 2,
+      pointHoverRadius:    5,
+      tension:             0.4,
+      fill:                false,
+      borderDash:          [5, 4],
+      order:               isProta ? 0 : 1
     });
   });
 
