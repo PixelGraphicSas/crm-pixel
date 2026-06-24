@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM Pixel — Pixel Graphic SAS</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230D1117'/%3E%3Crect x='7' y='4' width='13' height='17' rx='2' fill='%23161B22' stroke='%2330363D' stroke-width='1'/%3E%3Cpath d='M10 10h7M10 13h7M10 16h4' stroke='%238B949E' stroke-width='1.2' stroke-linecap='round'/%3E%3Ccircle cx='22' cy='22' r='7' fill='%234f8ef7'/%3E%3Cpath d='M19 22l2 2 4-4' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -56,11 +57,11 @@ body { background:var(--bg); color:var(--text); font-family:var(--font); font-si
 
 /* ─── LOGO / SIDEBAR ─── */
 .logo-area {
-  padding:20px 18px 16px;
+  padding:16px 18px;
   border-bottom:1px solid var(--border);
-  display:flex; align-items:center; gap:10px;
+  display:flex; align-items:center; gap:12px;
 }
-.logo-img { width:36px; height:36px; object-fit:contain; }
+.logo-img { width:65px; height:65px; object-fit:contain; }
 .logo-text { display:flex; flex-direction:column; }
 .logo-name { font-size:13px; font-weight:700; letter-spacing:.03em; color:var(--text); }
 .logo-sub  { font-family:var(--mono); font-size:9px; color:var(--text3); letter-spacing:.1em; text-transform:uppercase; margin-top:1px; }
@@ -736,6 +737,8 @@ option { background:var(--surface2); }
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- Chart.js para gráficas del Dashboard -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- jsPDF + html2canvas para descarga PDF directa -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -858,42 +861,264 @@ function navTo(page) {
 // ═══════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════
+// ─── Dashboard state ───
+var dashPeriodo   = 'anio';
+var dashRangeFrom = '';
+var dashRangeTo   = '';
+var dashChart     = null;
+
 function renderDashboard(el, actions) {
-  var total     = cotizaciones.length;
-  var aceptadas = cotizaciones.filter(function(c) { return c.estado === 'Aceptada'; });
-  var enviadas  = cotizaciones.filter(function(c) { return c.estado === 'Enviada' || c.estado === 'En estudio'; });
-  var valorAcep = aceptadas.reduce(function(a, c) { return a + (c.total || 0); }, 0);
-  var valorPipe = enviadas.reduce(function(a, c)  { return a + (c.total || 0); }, 0);
-  var tasa      = total > 0 ? Math.round((aceptadas.length / total) * 100) : 0;
+  el.innerHTML =
+    // Filtros de período
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">' +
+      '<span style="font-size:15px;font-weight:600">Dashboard Comercial</span>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<div class="pill-tabs" id="dashTabs">' +
+          ['mes','trimestre','semestre','anio','rango'].map(function(p) {
+            var lbl = {mes:'Este mes', trimestre:'Trimestre', semestre:'Semestre', anio:'Este año', rango:'Rango'}[p];
+            return '<button class="pill-tab' + (dashPeriodo===p?' active':'') + '" onclick="setDashPeriodo(\''+p+'\')">'+lbl+'</button>';
+          }).join('') +
+        '</div>' +
+        '<div id="rangoInputs" style="display:' + (dashPeriodo==='rango'?'flex':'none') + ';gap:6px;align-items:center">' +
+          '<input type="date" id="dashFrom" class="form-input" style="width:130px;padding:5px 8px;font-size:12px" value="'+dashRangeFrom+'" onchange="dashRangeFrom=this.value;refreshDash()">' +
+          '<span style="color:var(--text3);font-size:12px">→</span>' +
+          '<input type="date" id="dashTo" class="form-input" style="width:130px;padding:5px 8px;font-size:12px" value="'+dashRangeTo+'" onchange="dashRangeTo=this.value;refreshDash()">' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    // KPI cards
+    '<div class="stats-grid" id="dashKpis"></div>' +
+    // Gráfica
+    '<div class="table-wrap" style="padding:20px;margin-bottom:16px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
+        '<span style="font-size:13px;font-weight:600">Propuestas por mes</span>' +
+        '<div class="pill-tabs" id="chartModeTabs">' +
+          '<button class="pill-tab active" id="cmCant" onclick="setChartMode(\'cantidad\')">Cantidad</button>' +
+          '<button class="pill-tab" id="cmVal" onclick="setChartMode(\'valor\')">Valor</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="position:relative;height:220px"><canvas id="dashChartCanvas"></canvas></div>' +
+    '</div>' +
+    // Últimas cotizaciones
+    '<div class="table-wrap" id="dashTable"></div>';
 
-  // últimas 5
-  var ultimas = cotizaciones.slice(0, 5);
+  refreshDash();
+}
 
-  el.innerHTML = '<div class="stats-grid">' +
-    statCard('TOTAL PROPUESTAS', total, '', '') +
-    statCard('ACEPTADAS', aceptadas.length, tasa + '% tasa de cierre', 'green') +
+var chartMode = 'cantidad';
+function setChartMode(mode) {
+  chartMode = mode;
+  document.getElementById('cmCant').classList.toggle('active', mode==='cantidad');
+  document.getElementById('cmVal').classList.toggle('active', mode==='valor');
+  drawChart(getDashCots());
+}
+
+function setDashPeriodo(p) {
+  dashPeriodo = p;
+  // actualizar tabs
+  document.querySelectorAll('#dashTabs .pill-tab').forEach(function(btn, i) {
+    var periods = ['mes','trimestre','semestre','anio','rango'];
+    btn.classList.toggle('active', periods[i] === p);
+  });
+  var ri = document.getElementById('rangoInputs');
+  if (ri) ri.style.display = p==='rango' ? 'flex' : 'none';
+  refreshDash();
+}
+
+function getDashRange() {
+  var now   = new Date();
+  var year  = now.getFullYear();
+  var month = now.getMonth();
+  var from, to;
+  if (dashPeriodo === 'mes') {
+    from = new Date(year, month, 1);
+    to   = new Date(year, month+1, 0);
+  } else if (dashPeriodo === 'trimestre') {
+    var q = Math.floor(month/3);
+    from = new Date(year, q*3, 1);
+    to   = new Date(year, q*3+3, 0);
+  } else if (dashPeriodo === 'semestre') {
+    from = month < 6 ? new Date(year,0,1) : new Date(year,6,1);
+    to   = month < 6 ? new Date(year,5,30) : new Date(year,11,31);
+  } else if (dashPeriodo === 'anio') {
+    from = new Date(year, 0, 1);
+    to   = new Date(year, 11, 31);
+  } else if (dashPeriodo === 'rango') {
+    from = dashRangeFrom ? new Date(dashRangeFrom) : new Date(year,0,1);
+    to   = dashRangeTo   ? new Date(dashRangeTo)   : new Date();
+  }
+  return { from: from, to: to };
+}
+
+function getDashCots() {
+  var range = getDashRange();
+  return cotizaciones.filter(function(c) {
+    if (!c.fecha) return false;
+    var d = new Date(c.fecha);
+    return d >= range.from && d <= range.to;
+  });
+}
+
+function refreshDash() {
+  var cots      = getDashCots();
+  var aceptadas = cots.filter(function(c) { return c.estado === 'Aceptada'; });
+  var enviadas  = cots.filter(function(c) { return c.estado === 'Enviada' || c.estado === 'En estudio'; });
+  var valorAcep = aceptadas.reduce(function(a,c){ return a+(c.total||0); },0);
+  var valorPipe = enviadas.reduce(function(a,c) { return a+(c.total||0); },0);
+  var tasa      = cots.length > 0 ? Math.round((aceptadas.length/cots.length)*100) : 0;
+
+  var kpi = document.getElementById('dashKpis');
+  if (kpi) kpi.innerHTML =
+    statCard('PROPUESTAS', cots.length, 'en el período', '') +
+    statCard('ACEPTADAS', aceptadas.length, tasa+'% tasa de cierre', 'green') +
     statCard('EN PIPELINE', enviadas.length, fmtCOP(valorPipe), 'yellow') +
     statCard('VALOR ACEPTADO', fmtCOP(valorAcep), 'ingresos cerrados', 'accent') +
-    statCard('CLIENTES', clientes.length, 'registrados', '') +
-    statCard('SERVICIOS', servicios.length, 'en catálogo', '') +
-  '</div>' +
-  '<div class="table-wrap">' +
-    '<div class="table-header"><span style="font-size:13px;font-weight:600">Últimas cotizaciones</span>' +
+    statCard('CLIENTES', clientes.length, 'total registrados', '') +
+    statCard('CATÁLOGO', servicios.length, 'servicios activos', '');
+
+  drawChart(cots);
+
+  // tabla últimas 5 del período
+  var tbl = document.getElementById('dashTable');
+  if (!tbl) return;
+  var ultimas = cots.slice(0,5);
+  tbl.innerHTML =
+    '<div class="table-header"><span style="font-size:13px;font-weight:600">Últimas del período</span>' +
     '<button class="btn btn-ghost btn-sm" onclick="navTo(\'cotizaciones\')">Ver todas →</button></div>' +
-    '<table><thead><tr>' +
-    '<th>#</th><th>Tema</th><th>Cliente</th><th>Total</th><th>Fecha</th><th>Estado</th>' +
-    '</tr></thead><tbody>' +
-    ultimas.map(function(c) {
-      return '<tr>' +
-        '<td class="td-mono">' + (c.numero || '—') + '</td>' +
-        '<td>' + esc(c.tema || '') + '</td>' +
-        '<td>' + esc(c.clienteNombre || '') + '</td>' +
-        '<td class="td-mono">' + fmtCOP(c.total || 0) + '</td>' +
-        '<td class="td-mono">' + (c.fecha || '') + '</td>' +
-        '<td>' + badgeEstado(c.estado) + '</td>' +
-      '</tr>';
-    }).join('') +
-    '</tbody></table></div>';
+    '<table><thead><tr><th>#</th><th>Tema</th><th>Cliente</th><th>Total</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>' +
+    (ultimas.length === 0
+      ? '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Sin cotizaciones en este período</td></tr>'
+      : ultimas.map(function(c) {
+          return '<tr>' +
+            '<td class="td-mono">'+(c.numero||'—')+'</td>' +
+            '<td>'+esc(c.tema||'')+'</td>' +
+            '<td>'+esc(c.clienteNombre||'')+'</td>' +
+            '<td class="td-mono">'+fmtCOP(c.total||0)+'</td>' +
+            '<td class="td-mono">'+(c.fecha||'')+'</td>' +
+            '<td>'+badgeEstado(c.estado)+'</td>' +
+          '</tr>';
+        }).join('')
+    ) +
+    '</tbody></table>';
+}
+
+function drawChart(cots) {
+  var canvas = document.getElementById('dashChartCanvas');
+  if (!canvas) return;
+
+  // Agrupar por mes
+  var buckets = {};
+  cots.forEach(function(c) {
+    if (!c.fecha) return;
+    var d   = new Date(c.fecha);
+    var key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    if (!buckets[key]) buckets[key] = { cantidad: 0, valor: 0, aceptadas: 0 };
+    buckets[key].cantidad++;
+    buckets[key].valor += (c.total || 0);
+    if (c.estado === 'Aceptada') buckets[key].aceptadas++;
+  });
+
+  var keys = Object.keys(buckets).sort();
+  var labels = keys.map(function(k) {
+    var parts = k.split('-');
+    var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return meses[parseInt(parts[1])-1] + ' ' + parts[0].slice(2);
+  });
+
+  var dataMain = keys.map(function(k) {
+    return chartMode === 'cantidad' ? buckets[k].cantidad : buckets[k].valor;
+  });
+  var dataAcep = keys.map(function(k) {
+    return chartMode === 'cantidad' ? buckets[k].aceptadas : buckets[k].aceptadas * (buckets[k].valor / (buckets[k].cantidad || 1));
+  });
+
+  if (dashChart) { dashChart.destroy(); dashChart = null; }
+
+  if (keys.length === 0) {
+    var ctx0 = canvas.getContext('2d');
+    ctx0.clearRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+
+  var ctx = canvas.getContext('2d');
+  dashChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: chartMode === 'cantidad' ? 'Total propuestas' : 'Valor total',
+          data: dataMain,
+          borderColor: '#4f8ef7',
+          backgroundColor: 'rgba(79,142,247,0.08)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#4f8ef7',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          tension: 0.4,
+          fill: true
+        },
+        {
+          label: chartMode === 'cantidad' ? 'Aceptadas' : 'Valor aceptado',
+          data: dataAcep,
+          borderColor: '#3FB950',
+          backgroundColor: 'rgba(63,185,80,0.06)',
+          borderWidth: 2,
+          pointBackgroundColor: '#3FB950',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          tension: 0.4,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#8B949E',
+            font: { family: 'Space Grotesk', size: 12 },
+            boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: '#1C2128',
+          borderColor: '#30363D',
+          borderWidth: 1,
+          titleColor: '#E6EDF3',
+          bodyColor: '#8B949E',
+          padding: 10,
+          callbacks: {
+            label: function(ctx) {
+              var v = ctx.parsed.y;
+              return ' ' + ctx.dataset.label + ': ' + (chartMode==='valor' ? fmtCOP(v) : v);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(48,54,61,0.6)' },
+          ticks: { color: '#484F58', font: { family: 'JetBrains Mono', size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(48,54,61,0.6)' },
+          ticks: {
+            color: '#484F58',
+            font: { family: 'JetBrains Mono', size: 11 },
+            callback: function(v) {
+              return chartMode === 'valor'
+                ? (v >= 1000000 ? '$'+(v/1000000).toFixed(1)+'M' : '$'+(v/1000).toFixed(0)+'K')
+                : v;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 function statCard(label, val, sub, color) {
@@ -948,7 +1173,9 @@ function renderCotizaciones(el, actions) {
           '<td class="td-mono">' + (c.validez || '') + '</td>' +
           '<td>' + badgeEstado(c.estado) + '</td>' +
           '<td><div class="actions-cell">' +
-            '<button class="btn btn-ghost btn-sm" onclick="verCotizacion(\'' + c.id + '\')" title="Ver PDF">📄</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="verCotizacion(\'' + c.id + '\')" title="Ver PDF" style="padding:5px 7px">' +
+            '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display:block"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>' +
+            '</button>' +
             '<button class="btn btn-sm" onclick="downloadPDF(\'' + c.id + '\')" title="Descargar PDF" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.2)">⬇ PDF</button>' +
             '<button class="btn btn-ghost btn-sm" onclick="editCotizacion(\'' + c.id + '\')" title="Editar">✏️</button>' +
             '<button class="btn btn-ghost btn-sm" onclick="cambiarEstado(\'' + c.id + '\')" title="Estado">🔄</button>' +
