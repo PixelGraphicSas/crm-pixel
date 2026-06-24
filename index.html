@@ -862,28 +862,30 @@ function navTo(page) {
 // DASHBOARD
 // ═══════════════════════════════════════════════════════
 // ─── Dashboard state ───
-var dashPeriodo   = 'anio';
+var dashPeriodo   = 'todo';
 var dashRangeFrom = '';
 var dashRangeTo   = '';
 var dashChart     = null;
 
 function renderDashboard(el, actions) {
   el.innerHTML =
-    // Filtros de período
-    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">' +
+    // Título + filtros KPI (período)
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">' +
       '<span style="font-size:15px;font-weight:600">Dashboard Comercial</span>' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-        '<div class="pill-tabs" id="dashTabs">' +
-          ['mes','trimestre','semestre','anio','rango'].map(function(p) {
-            var lbl = {mes:'Este mes', trimestre:'Trimestre', semestre:'Semestre', anio:'Este año', rango:'Rango'}[p];
-            return '<button class="pill-tab' + (dashPeriodo===p?' active':'') + '" onclick="setDashPeriodo(\''+p+'\')">'+lbl+'</button>';
-          }).join('') +
-        '</div>' +
-        '<div id="rangoInputs" style="display:' + (dashPeriodo==='rango'?'flex':'none') + ';gap:6px;align-items:center">' +
-          '<input type="date" id="dashFrom" class="form-input" style="width:130px;padding:5px 8px;font-size:12px" value="'+dashRangeFrom+'" onchange="dashRangeFrom=this.value;refreshDash()">' +
-          '<span style="color:var(--text3);font-size:12px">→</span>' +
-          '<input type="date" id="dashTo" class="form-input" style="width:130px;padding:5px 8px;font-size:12px" value="'+dashRangeTo+'" onchange="dashRangeTo=this.value;refreshDash()">' +
-        '</div>' +
+    '</div>' +
+    // KPI filtros de período — solo afectan tarjetas y tabla
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">' +
+      '<span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">KPIs:</span>' +
+      '<div class="pill-tabs" id="dashTabs">' +
+        ['mes','trimestre','semestre','anio','todo'].map(function(p) {
+          var lbl = {mes:'Este mes', trimestre:'Trimestre', semestre:'Semestre', anio:'Este año', todo:'Todo'}[p];
+          return '<button class="pill-tab' + (dashPeriodo===p?' active':'') + '" onclick="setDashPeriodo(\''+p+'\')">'+lbl+'</button>';
+        }).join('') +
+      '</div>' +
+      '<div id="rangoInputs" style="display:' + (dashPeriodo==='rango'?'flex':'none') + ';gap:6px;align-items:center">' +
+        '<input type="date" id="dashFrom" class="form-input" style="width:130px;padding:5px 8px;font-size:12px" value="'+dashRangeFrom+'" onchange="dashRangeFrom=this.value;refreshDash()">' +
+        '<span style="color:var(--text3);font-size:12px">→</span>' +
+        '<input type="date" id="dashTo" class="form-input" style="width:130px;padding:5px 8px;font-size:12px" value="'+dashRangeTo+'" onchange="dashRangeTo=this.value;refreshDash()">' +
       '</div>' +
     '</div>' +
     // KPI cards
@@ -933,14 +935,13 @@ function setChartMode(mode) {
   var val  = document.getElementById('cmVal');
   if (cant) cant.classList.toggle('active', mode==='cantidad');
   if (val)  val.classList.toggle('active',  mode==='valor');
-  drawChart(getDashCots());
+  drawChart(cotizaciones); // siempre historial completo
 }
 
 function setDashPeriodo(p) {
   dashPeriodo = p;
-  // actualizar tabs
   document.querySelectorAll('#dashTabs .pill-tab').forEach(function(btn, i) {
-    var periods = ['mes','trimestre','semestre','anio','rango'];
+    var periods = ['mes','trimestre','semestre','anio','todo'];
     btn.classList.toggle('active', periods[i] === p);
   });
   var ri = document.getElementById('rangoInputs');
@@ -969,6 +970,9 @@ function getDashRange() {
   } else if (dashPeriodo === 'rango') {
     from = dashRangeFrom ? new Date(dashRangeFrom) : new Date(year,0,1);
     to   = dashRangeTo   ? new Date(dashRangeTo)   : new Date();
+  } else if (dashPeriodo === 'todo') {
+    from = new Date(2000, 0, 1);
+    to   = new Date(2099, 11, 31);
   }
   return { from: from, to: to };
 }
@@ -1005,13 +1009,13 @@ function refreshDash() {
     statCard('CLIENTES', clientes.length, 'total registrados', '') +
     statCard('CATÁLOGO', servicios.length, 'servicios activos', '');
 
-  // Gráfica: pasar TODAS las cots del período para comparativo interanual
-  drawChart(getDashCots());
+  // Gráfica: SIEMPRE historial completo — sin filtro de período
+  drawChart(cotizaciones);
 
   // tabla últimas 5 del período
   var tbl = document.getElementById('dashTable');
   if (!tbl) return;
-  var ultimas = cots.slice(0,5);
+  var ultimas = cotsPeriodo.slice(0,5);
   tbl.innerHTML =
     '<div class="table-header"><span style="font-size:13px;font-weight:600">Últimas del período</span>' +
     '<button class="btn btn-ghost btn-sm" onclick="navTo(\'cotizaciones\')">Ver todas →</button></div>' +
