@@ -731,6 +731,32 @@ option { background:var(--surface2); }
   </div>
 </div>
 
+<!-- Modal Importar Clientes -->
+<div class="modal-overlay" id="modalImportClientes">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title">Importar Clientes desde Excel</span>
+      <button class="btn-close" onclick="closeModal('modalImportClientes')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:4px">Sube el Excel exportado del sistema anterior.</p>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:16px">Columnas esperadas: <span style="font-family:var(--mono);color:var(--text2)">#, Empresa, Contacto principal, Email principal, Teléfono, Activo, Tipo de cliente, fecha de creación</span></p>
+      <input type="file" id="importClientesFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImportClientes()">
+      <button class="btn btn-secondary" onclick="document.getElementById('importClientesFile').click()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Seleccionar archivo
+      </button>
+      <div id="importClientesPreview" style="margin-top:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalImportClientes')">Cancelar</button>
+      <button class="btn btn-primary" id="btnDoImportClientes" style="display:none" onclick="doImportClientes()">Importar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Loading & Toast -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
@@ -1682,7 +1708,11 @@ function downloadPDF(id) {
 // CLIENTES
 // ═══════════════════════════════════════════════════════
 function renderClientes(el, actions) {
-  actions.innerHTML = '<button class="btn btn-primary" onclick="openModalCliente()">' +
+  actions.innerHTML =
+    '<button class="btn btn-ghost btn-sm" onclick="openModal(\'modalImportClientes\')">' +
+    '<svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>' +
+    'Importar clientes</button>' +
+    '<button class="btn btn-primary" onclick="openModalCliente()">' +
     '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>' +
     'Nuevo Cliente</button>';
 
@@ -1786,6 +1816,132 @@ function deleteCliente(id) {
     showToast('Cliente eliminado', 'ok');
     return loadAll();
   }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+// ═══════════════════════════════════════════════════════
+// IMPORTAR CLIENTES (Excel)
+// ═══════════════════════════════════════════════════════
+var importClientesRows = [];
+
+function previewImportClientes() {
+  var file = document.getElementById('importClientesFile').files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var wb   = XLSX.read(e.target.result, { type: 'binary' });
+    var ws   = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    // Filtrar fila de encabezado extra si existe
+    importClientesRows = rows.filter(function(r) {
+      var vals = Object.values(r).map(function(v) { return String(v).trim(); });
+      return vals.some(function(v) { return v && v !== 'Empresa' && v !== '#'; });
+    }).map(function(r) {
+      var keys = Object.keys(r);
+      // Mapear por posición: #, Empresa, Contacto, Email, Teléfono, Activo, Tipo, Fecha
+      return {
+        empresa:   String(r[keys[1]] || r['Empresa'] || '').trim(),
+        contacto:  String(r[keys[2]] || r['Contacto principal'] || '').trim(),
+        email:     String(r[keys[3]] || r['Email principal'] || '').trim(),
+        telefono:  String(r[keys[4]] || r['Teléfono'] || '').trim(),
+        activo:    String(r[keys[5]] || r['Activo'] || 'Sí').trim(),
+        tipo:      String(r[keys[6]] || r['Tipo de cliente'] || '').trim(),
+        fechaOrig: String(r[keys[7]] || r['fecha de creación'] || '').trim()
+      };
+    }).filter(function(r) { return r.empresa && r.empresa !== 'Empresa'; });
+
+    var prev = document.getElementById('importClientesPreview');
+    if (importClientesRows.length === 0) {
+      prev.innerHTML = '<p style="color:var(--red);font-size:13px">No se encontraron clientes válidos en el archivo.</p>';
+      document.getElementById('btnDoImportClientes').style.display = 'none';
+      return;
+    }
+
+    prev.innerHTML =
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Se importarán <strong style="color:var(--text)">' + importClientesRows.length + ' clientes</strong></p>' +
+      '<div class="import-preview">' +
+        '<table style="width:100%;border-collapse:collapse">' +
+          '<thead><tr>' +
+            ['Empresa','Contacto','Email','Teléfono','Tipo'].map(function(h) {
+              return '<th style="padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">' + h + '</th>';
+            }).join('') +
+          '</tr></thead><tbody>' +
+          importClientesRows.slice(0, 15).map(function(r) {
+            return '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="padding:5px 10px;font-size:12px;font-weight:500">' + esc(r.empresa) + '</td>' +
+              '<td style="padding:5px 10px;font-size:12px;color:var(--text2)">' + esc(r.contacto) + '</td>' +
+              '<td style="padding:5px 10px;font-size:11px;font-family:var(--mono);color:var(--text2)">' + esc(r.email) + '</td>' +
+              '<td style="padding:5px 10px;font-size:11px;font-family:var(--mono)">' + esc(r.telefono) + '</td>' +
+              '<td style="padding:5px 10px">' + (r.tipo ? '<span class="tag">' + esc(r.tipo) + '</span>' : '') + '</td>' +
+            '</tr>';
+          }).join('') +
+          (importClientesRows.length > 15 ? '<tr><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--text3)">... y ' + (importClientesRows.length - 15) + ' más</td></tr>' : '') +
+        '</tbody></table>' +
+      '</div>';
+    document.getElementById('btnDoImportClientes').style.display = 'inline-flex';
+  };
+  reader.readAsBinaryString(file);
+}
+
+function doImportClientes() {
+  if (!importClientesRows.length) return;
+  showLoading();
+
+  // Verificar duplicados contra clientes existentes
+  var existentes = clientes.map(function(c) { return c.empresa.toLowerCase().trim(); });
+  var nuevos     = importClientesRows.filter(function(r) {
+    return !existentes.includes(r.empresa.toLowerCase().trim());
+  });
+  var duplicados = importClientesRows.length - nuevos.length;
+
+  if (nuevos.length === 0) {
+    hideLoading();
+    showToast('Todos los clientes ya existen en el sistema (' + duplicados + ' duplicados omitidos)', 'ok');
+    closeModal('modalImportClientes');
+    return;
+  }
+
+  // Importar en lotes de 500 (límite Firestore batch)
+  var LOTE = 400;
+  var lotes = [];
+  for (var i = 0; i < nuevos.length; i += LOTE) {
+    lotes.push(nuevos.slice(i, i + LOTE));
+  }
+
+  var promesas = lotes.map(function(lote) {
+    var batch = db.batch();
+    lote.forEach(function(r) {
+      var ref = db.collection('clientes').doc();
+      batch.set(ref, {
+        empresa:    r.empresa,
+        contacto:   r.contacto,
+        email:      r.email,
+        telefono:   r.telefono,
+        tipo:       r.tipo,
+        ciudad:     '',
+        direccion:  '',
+        nit:        '',
+        cargo:      '',
+        notas:      r.activo === 'No' ? 'Cliente inactivo en sistema anterior' : '',
+        importado:  true,
+        creadoEn:   firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:  firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    return batch.commit();
+  });
+
+  Promise.all(promesas).then(function() {
+    var msg = nuevos.length + ' clientes importados';
+    if (duplicados > 0) msg += ' · ' + duplicados + ' duplicados omitidos';
+    closeModal('modalImportClientes');
+    importClientesRows = [];
+    showToast(msg, 'ok');
+    return loadAll();
+  }).catch(function(e) {
+    hideLoading();
+    showToast('Error: ' + e.message, 'err');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
