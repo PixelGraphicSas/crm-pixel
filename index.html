@@ -323,7 +323,7 @@ option { background:var(--surface2); }
 <div id="loginWrap" class="login-wrap">
   <div class="login-box">
     <div class="login-logo">
-      <img src="https://pixelgraphicsas.github.io/tc-monitor/logo.png" alt="Pixel" style="mix-blend-mode:screen">
+      <img src="https://pixelgraphicsas.github.io/crm-pixel/Logo.png" alt="Pixel" style="mix-blend-mode:screen">
       <div class="login-logo-text">
         <h1>CRM Pixel</h1>
         <p>Pixel Graphic SAS</p>
@@ -352,7 +352,7 @@ option { background:var(--surface2); }
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="logo-area">
-      <img class="logo-img" src="https://pixelgraphicsas.github.io/tc-monitor/logo.png" alt="Pixel" style="mix-blend-mode:screen">
+      <img class="logo-img" src="https://pixelgraphicsas.github.io/crm-pixel/Logo.png" alt="Pixel" style="mix-blend-mode:screen">
       <div class="logo-text">
         <span class="logo-name">CRM Pixel</span>
         <span class="logo-sub">Pixel Graphic SAS</span>
@@ -380,6 +380,10 @@ option { background:var(--surface2); }
       <div class="nav-item" onclick="navTo('catalogo')" id="nav-catalogo">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         Catálogo de Servicios
+      </div>
+      <div class="nav-item" onclick="navTo('usuarios')" id="nav-usuarios">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197"/></svg>
+        Usuarios
       </div>
     </nav>
 
@@ -653,6 +657,54 @@ option { background:var(--surface2); }
   </div>
 </div>
 
+<!-- Modal Usuario -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalUsuarioTitle">Nuevo Usuario</span>
+      <button class="btn-close" onclick="closeModal('modalUsuario')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="usuarioId">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Nombre completo *</label>
+          <input id="uNombre" class="form-input" placeholder="Ej: John Alexander Morales">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cargo</label>
+          <input id="uCargo" class="form-input" placeholder="Ej: Gerencia, Comercial...">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Correo electrónico *</label>
+          <input id="uEmail" type="email" class="form-input" placeholder="correo@pixel-g.com">
+        </div>
+        <div class="form-group" id="uPassGroup">
+          <label class="form-label">Contraseña *</label>
+          <input id="uPass" type="password" class="form-input" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rol</label>
+          <select id="uRol" class="form-select">
+            <option value="admin">Administrador</option>
+            <option value="comercial">Comercial</option>
+            <option value="viewer">Solo lectura</option>
+          </select>
+        </div>
+      </div>
+      <div style="background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.2);border-radius:var(--radius);padding:12px 14px;margin-top:14px;font-size:12px;color:var(--text2)">
+        <strong style="color:var(--accent)">Importante:</strong> El usuario recibirá acceso con el correo y contraseña que definas aquí. Compártelos de forma segura.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalUsuario')">Cancelar</button>
+      <button class="btn btn-primary" id="btnGuardarUsuario" onclick="saveUsuario()">Crear Usuario</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Importar Historial -->
 <div class="modal-overlay" id="modalImport">
   <div class="modal modal-lg">
@@ -776,7 +828,7 @@ function loadAll() {
 // ═══════════════════════════════════════════════════════
 function navTo(page) {
   currentPage = page;
-  var pages = ['dashboard','cotizaciones','clientes','catalogo'];
+  var pages = ['dashboard','cotizaciones','clientes','catalogo','usuarios'];
   pages.forEach(function(p) {
     var el = document.getElementById('nav-' + p);
     if (el) el.classList.toggle('active', p === page);
@@ -785,7 +837,8 @@ function navTo(page) {
     dashboard:    'Dashboard',
     cotizaciones: 'Cotizaciones',
     clientes:     'Clientes',
-    catalogo:     'Catálogo de Servicios'
+    catalogo:     'Catalogo de Servicios',
+    usuarios:     'Usuarios'
   };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   var content = document.getElementById('pageContent');
@@ -796,6 +849,7 @@ function navTo(page) {
   if (page === 'cotizaciones') { renderCotizaciones(content, actions); }
   if (page === 'clientes')     { renderClientes(content, actions); }
   if (page === 'catalogo')     { renderCatalogo(content, actions); }
+  if (page === 'usuarios')     { renderUsuarios(content, actions); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -892,6 +946,7 @@ function renderCotizaciones(el, actions) {
           '<td>' + badgeEstado(c.estado) + '</td>' +
           '<td><div class="actions-cell">' +
             '<button class="btn btn-ghost btn-sm" onclick="verCotizacion(\'' + c.id + '\')" title="Ver PDF">📄</button>' +
+            '<button class="btn btn-sm" onclick="downloadPDF(\'' + c.id + '\')" title="Descargar PDF" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.2)">⬇ PDF</button>' +
             '<button class="btn btn-ghost btn-sm" onclick="editCotizacion(\'' + c.id + '\')" title="Editar">✏️</button>' +
             '<button class="btn btn-ghost btn-sm" onclick="cambiarEstado(\'' + c.id + '\')" title="Estado">🔄</button>' +
             '<button class="btn btn-ghost btn-sm" onclick="deleteCotizacion(\'' + c.id + '\')" title="Eliminar">🗑️</button>' +
@@ -1160,7 +1215,7 @@ function buildPDFHtml(c, cl) {
     // Encabezado
     '<table style="width:100%;margin-bottom:32px"><tr>' +
       '<td style="vertical-align:top">' +
-        '<img src="https://pixelgraphicsas.github.io/tc-monitor/logo.png" style="height:52px;margin-bottom:8px"><br>' +
+        '<img src="https://pixelgraphicsas.github.io/crm-pixel/Logo.png" style="height:52px;margin-bottom:8px"><br>' +
         '<div style="font-size:12px;color:#374151"><strong>PIXEL GRAPHIC S.A.S</strong><br>' +
         '1a # 65 - 10 - 201 Barrio Mallorca<br>Medellín Antioquia<br>Colombia 050024<br>NIT: 900428247-5</div>' +
       '</td>' +
@@ -1222,6 +1277,30 @@ function printPDF() {
   w.document.close();
   w.focus();
   setTimeout(function() { w.print(); }, 400);
+}
+
+// ─── Descarga directa PDF ───
+function downloadPDF(id) {
+  var cot = cotizaciones.find(function(x) { return x.id === id; });
+  if (!cot) return;
+  var clienteObj = clientes.find(function(x) { return x.id === cot.clienteId; }) || {};
+  var htmlContent = buildPDFHtml(cot, clienteObj);
+  var filename = (cot.numero || 'cotizacion').replace(/[^a-zA-Z0-9-]/g, '_') + '_' + (cot.clienteNombre || cot.para || '').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20) + '.html';
+  var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + (cot.numero || 'Cotizacion') + '</title>' +
+    '<style>body{margin:0;padding:20px;font-family:Arial,sans-serif;background:#fff}' +
+    '@media print{body{margin:0;padding:0}@page{margin:15mm}}' +
+    '</style></head><body>' + htmlContent +
+    '<script>window.onload=function(){window.print();}<\/script></body></html>';
+  var blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Descargando ' + (cot.numero || '') + '...', 'ok');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1434,6 +1513,138 @@ function deleteServicio(id) {
   db.collection('servicios').doc(id).delete().then(function() {
     showToast('Servicio eliminado', 'ok');
     return loadAll();
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+
+// ═══════════════════════════════════════════════════════
+// USUARIOS
+// ═══════════════════════════════════════════════════════
+var adminEmail = 'gerencia@pixel-g.com'; // email del admin principal
+
+function renderUsuarios(el, actions) {
+  // Solo admin puede gestionar usuarios
+  var esAdmin = currentUser && currentUser.email === adminEmail;
+
+  actions.innerHTML = esAdmin
+    ? '<button class="btn btn-primary" onclick="openModalUsuario()"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>Nuevo Usuario</button>'
+    : '';
+
+  showLoading();
+  // Cargar usuarios desde colección 'usuarios' en Firestore
+  db.collection('usuarios').orderBy('nombre').get().then(function(snap) {
+    hideLoading();
+    var lista = snap.docs.map(function(d) { return Object.assign({id: d.id}, d.data()); });
+
+    el.innerHTML = esAdmin
+      ? ''
+      : '<div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--red)">Solo el administrador puede gestionar usuarios.</div>';
+
+    el.innerHTML += '<div class="table-wrap">' +
+      '<div class="table-header">' +
+        '<span style="font-size:13px;font-weight:600">Usuarios con acceso al CRM</span>' +
+        '<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">' + lista.length + ' usuarios</span>' +
+      '</div>' +
+      '<table><thead><tr>' +
+        '<th>Nombre</th><th>Correo</th><th>Cargo</th><th>Rol</th><th>Creado</th>' +
+        (esAdmin ? '<th>Acciones</th>' : '') +
+      '</tr></thead><tbody>' +
+      (lista.length === 0
+        ? '<tr><td colspan="6"><div class="empty-state"><p>Sin usuarios registrados.</p><p style="font-size:12px">Agrega el primer usuario para que pueda acceder al CRM.</p>' + (esAdmin ? '<button class="btn btn-primary" onclick="openModalUsuario()">Agregar usuario</button>' : '') + '</div></td></tr>'
+        : lista.map(function(u) {
+            var rolBadge = u.rol === 'admin' ? 'badge-blue' : u.rol === 'comercial' ? 'badge-green' : 'badge-gray';
+            var rolLabel = u.rol === 'admin' ? 'Admin' : u.rol === 'comercial' ? 'Comercial' : 'Solo lectura';
+            var fecha = u.creadoEn && u.creadoEn.toDate ? u.creadoEn.toDate().toLocaleDateString('es-CO') : '—';
+            return '<tr>' +
+              '<td style="font-weight:500">' + esc(u.nombre || '') + '</td>' +
+              '<td class="td-mono" style="font-size:12px">' + esc(u.email || '') + '</td>' +
+              '<td style="color:var(--text2)">' + esc(u.cargo || '') + '</td>' +
+              '<td><span class="badge ' + rolBadge + '">' + rolLabel + '</span></td>' +
+              '<td class="td-mono" style="font-size:11px;color:var(--text3)">' + fecha + '</td>' +
+              (esAdmin ? '<td><div class="actions-cell">' +
+                (u.email !== adminEmail ? '<button class="btn btn-ghost btn-sm" onclick="deleteUsuario(\'' + u.id + '\',\'' + esc(u.nombre) + '\')">&#128465;</button>' : '<span style="font-size:11px;color:var(--text3)">Admin principal</span>') +
+              '</div></td>' : '') +
+            '</tr>';
+          }).join('')
+      ) +
+      '</tbody></table></div>' +
+      '<div style="margin-top:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg)">' +
+        '<p style="font-size:12px;color:var(--text3);margin-bottom:4px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Nota de seguridad</p>' +
+        '<p style="font-size:12px;color:var(--text2)">Los usuarios se crean directamente en Firebase Authentication. La contraseña inicial debe ser compartida de forma segura. El usuario puede cambiarla desde su cuenta.</p>' +
+      '</div>';
+  }).catch(function(e) {
+    hideLoading();
+    el.innerHTML = '<div class="empty-state"><p>Error cargando usuarios.</p></div>';
+  });
+}
+
+function openModalUsuario() {
+  document.getElementById('usuarioId').value = '';
+  document.getElementById('uNombre').value   = '';
+  document.getElementById('uCargo').value    = '';
+  document.getElementById('uEmail').value    = '';
+  document.getElementById('uPass').value     = '';
+  document.getElementById('uRol').value      = 'comercial';
+  document.getElementById('uPassGroup').style.display = 'flex';
+  document.getElementById('modalUsuarioTitle').textContent = 'Nuevo Usuario';
+  document.getElementById('btnGuardarUsuario').textContent = 'Crear Usuario';
+  openModal('modalUsuario');
+}
+
+function saveUsuario() {
+  var nombre = document.getElementById('uNombre').value.trim();
+  var email  = document.getElementById('uEmail').value.trim();
+  var pass   = document.getElementById('uPass').value;
+  var cargo  = document.getElementById('uCargo').value.trim();
+  var rol    = document.getElementById('uRol').value;
+
+  if (!nombre) { showToast('El nombre es obligatorio', 'err'); return; }
+  if (!email)  { showToast('El correo es obligatorio', 'err'); return; }
+  if (!pass || pass.length < 6) { showToast('La contraseña debe tener al menos 6 caracteres', 'err'); return; }
+
+  showLoading();
+
+  // Crear usuario en Firebase Auth usando la API REST (sin perder la sesión actual)
+  var apiKey = firebaseConfig.apiKey;
+  fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: pass, returnSecureToken: false })
+  }).then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.error) {
+      hideLoading();
+      var msg = data.error.message === 'EMAIL_EXISTS' ? 'Este correo ya está registrado' : data.error.message;
+      showToast('Error: ' + msg, 'err');
+      return;
+    }
+    // Guardar perfil en Firestore
+    return db.collection('usuarios').add({
+      nombre:    nombre,
+      email:     email,
+      cargo:     cargo,
+      rol:       rol,
+      uid:       data.localId || '',
+      creadoEn:  firebase.firestore.FieldValue.serverTimestamp(),
+      creadoPor: currentUser ? currentUser.email : ''
+    });
+  }).then(function() {
+    if (!arguments[0]) return; // si ya hubo error
+    closeModal('modalUsuario');
+    showToast('Usuario ' + email + ' creado exitosamente', 'ok');
+    navTo('usuarios');
+  }).catch(function(e) {
+    hideLoading();
+    showToast('Error: ' + e.message, 'err');
+  });
+}
+
+function deleteUsuario(id, nombre) {
+  if (!confirm('Eliminar a ' + nombre + ' del CRM? Perdera acceso al sistema.')) return;
+  showLoading();
+  db.collection('usuarios').doc(id).delete().then(function() {
+    showToast('Usuario eliminado del registro. Recuerda eliminarlo tambien en Firebase Auth si es necesario.', 'ok');
+    navTo('usuarios');
   }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
 }
 
