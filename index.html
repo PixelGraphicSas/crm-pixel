@@ -890,14 +890,22 @@ function renderDashboard(el, actions) {
     '<div class="stats-grid" id="dashKpis"></div>' +
     // Gráfica
     '<div class="table-wrap" style="padding:20px;margin-bottom:16px">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
-        '<span style="font-size:13px;font-weight:600">Propuestas por mes</span>' +
-        '<div class="pill-tabs" id="chartModeTabs">' +
-          '<button class="pill-tab active" id="cmCant" onclick="setChartMode(\'cantidad\')">Cantidad</button>' +
-          '<button class="pill-tab" id="cmVal" onclick="setChartMode(\'valor\')">Valor</button>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">' +
+        '<span style="font-size:13px;font-weight:600">Propuestas por mes — comparativo interanual</span>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+          // Filtro año
+          '<select id="yearFilter" class="form-select" style="width:110px;padding:5px 8px;font-size:12px" onchange="yearFilterVal=this.value;refreshDash()">' +
+            '<option value="todos">Todos los años</option>' +
+            yearOptions() +
+          '</select>' +
+          // Modo cantidad/valor
+          '<div class="pill-tabs" id="chartModeTabs">' +
+            '<button class="pill-tab active" id="cmCant" onclick="setChartMode(\'cantidad\')">Cantidad</button>' +
+            '<button class="pill-tab" id="cmVal" onclick="setChartMode(\'valor\')">Valor</button>' +
+          '</div>' +
         '</div>' +
       '</div>' +
-      '<div style="position:relative;height:220px"><canvas id="dashChartCanvas"></canvas></div>' +
+      '<div style="position:relative;height:260px"><canvas id="dashChartCanvas"></canvas></div>' +
     '</div>' +
     // Últimas cotizaciones
     '<div class="table-wrap" id="dashTable"></div>';
@@ -905,11 +913,26 @@ function renderDashboard(el, actions) {
   refreshDash();
 }
 
-var chartMode = 'cantidad';
+var chartMode    = 'cantidad';
+var yearFilterVal = 'todos';
+
+// Generar opciones de año basadas en los datos
+function yearOptions() {
+  var years = {};
+  cotizaciones.forEach(function(c) {
+    if (c.fecha) years[new Date(c.fecha).getFullYear()] = 1;
+  });
+  return Object.keys(years).sort().reverse().map(function(y) {
+    return '<option value="'+y+'">'+y+'</option>';
+  }).join('');
+}
+
 function setChartMode(mode) {
   chartMode = mode;
-  document.getElementById('cmCant').classList.toggle('active', mode==='cantidad');
-  document.getElementById('cmVal').classList.toggle('active', mode==='valor');
+  var cant = document.getElementById('cmCant');
+  var val  = document.getElementById('cmVal');
+  if (cant) cant.classList.toggle('active', mode==='cantidad');
+  if (val)  val.classList.toggle('active',  mode==='valor');
   drawChart(getDashCots());
 }
 
@@ -960,23 +983,30 @@ function getDashCots() {
 }
 
 function refreshDash() {
-  var cots      = getDashCots();
-  var aceptadas = cots.filter(function(c) { return c.estado === 'Aceptada'; });
-  var enviadas  = cots.filter(function(c) { return c.estado === 'Enviada' || c.estado === 'En estudio'; });
+  // KPIs: filtrar por período Y por año si hay filtro
+  var cotsPeriodo = getDashCots();
+  if (yearFilterVal !== 'todos') {
+    cotsPeriodo = cotsPeriodo.filter(function(c) {
+      return c.fecha && new Date(c.fecha).getFullYear() === parseInt(yearFilterVal);
+    });
+  }
+  var aceptadas = cotsPeriodo.filter(function(c) { return c.estado === 'Aceptada'; });
+  var enviadas  = cotsPeriodo.filter(function(c) { return c.estado === 'Enviada' || c.estado === 'En estudio'; });
   var valorAcep = aceptadas.reduce(function(a,c){ return a+(c.total||0); },0);
   var valorPipe = enviadas.reduce(function(a,c) { return a+(c.total||0); },0);
-  var tasa      = cots.length > 0 ? Math.round((aceptadas.length/cots.length)*100) : 0;
+  var tasa      = cotsPeriodo.length > 0 ? Math.round((aceptadas.length/cotsPeriodo.length)*100) : 0;
 
   var kpi = document.getElementById('dashKpis');
   if (kpi) kpi.innerHTML =
-    statCard('PROPUESTAS', cots.length, 'en el período', '') +
+    statCard('PROPUESTAS', cotsPeriodo.length, yearFilterVal !== 'todos' ? yearFilterVal : 'en el período', '') +
     statCard('ACEPTADAS', aceptadas.length, tasa+'% tasa de cierre', 'green') +
     statCard('EN PIPELINE', enviadas.length, fmtCOP(valorPipe), 'yellow') +
     statCard('VALOR ACEPTADO', fmtCOP(valorAcep), 'ingresos cerrados', 'accent') +
     statCard('CLIENTES', clientes.length, 'total registrados', '') +
     statCard('CATÁLOGO', servicios.length, 'servicios activos', '');
 
-  drawChart(cots);
+  // Gráfica: pasar TODAS las cots del período para comparativo interanual
+  drawChart(getDashCots());
 
   // tabla últimas 5 del período
   var tbl = document.getElementById('dashTable');
@@ -1002,76 +1032,127 @@ function refreshDash() {
     '</tbody></table>';
 }
 
-function drawChart(cots) {
+function drawChart(allCots) {
   var canvas = document.getElementById('dashChartCanvas');
   if (!canvas) return;
-
-  // Agrupar por mes
-  var buckets = {};
-  cots.forEach(function(c) {
-    if (!c.fecha) return;
-    var d   = new Date(c.fecha);
-    var key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-    if (!buckets[key]) buckets[key] = { cantidad: 0, valor: 0, aceptadas: 0 };
-    buckets[key].cantidad++;
-    buckets[key].valor += (c.total || 0);
-    if (c.estado === 'Aceptada') buckets[key].aceptadas++;
-  });
-
-  var keys = Object.keys(buckets).sort();
-  var labels = keys.map(function(k) {
-    var parts = k.split('-');
-    var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-    return meses[parseInt(parts[1])-1] + ' ' + parts[0].slice(2);
-  });
-
-  var dataMain = keys.map(function(k) {
-    return chartMode === 'cantidad' ? buckets[k].cantidad : buckets[k].valor;
-  });
-  var dataAcep = keys.map(function(k) {
-    return chartMode === 'cantidad' ? buckets[k].aceptadas : buckets[k].aceptadas * (buckets[k].valor / (buckets[k].cantidad || 1));
-  });
-
   if (dashChart) { dashChart.destroy(); dashChart = null; }
 
-  if (keys.length === 0) {
-    var ctx0 = canvas.getContext('2d');
-    ctx0.clearRect(0,0,canvas.width,canvas.height);
+  // Paleta interanual: año actual azul sólido, anteriores difuminados
+  // Orden: 2026 azul, 2025 amarillo, 2024 verde, 2023 rojo, otros morado
+  var yearColors = {
+    solid:  ['#4f8ef7', '#D29922', '#3FB950', '#F85149', '#BC8CFF'],
+    faded:  ['rgba(79,142,247,0.20)', 'rgba(210,153,34,0.15)', 'rgba(63,185,80,0.15)', 'rgba(248,81,73,0.15)', 'rgba(188,140,255,0.15)'],
+    point:  ['#4f8ef7', '#D29922', '#3FB950', '#F85149', '#BC8CFF']
+  };
+
+  // Obtener todos los años con datos
+  var allYears = {};
+  allCots.forEach(function(c) {
+    if (c.fecha) allYears[new Date(c.fecha).getFullYear()] = 1;
+  });
+  var years = Object.keys(allYears).map(Number).sort().reverse(); // desc: más reciente primero
+
+  // Si hay filtro de año, mostrar solo ese año (sin comparativo)
+  if (yearFilterVal !== 'todos') {
+    years = [parseInt(yearFilterVal)];
+  }
+
+  if (years.length === 0 || allCots.length === 0) {
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
     return;
   }
+
+  // Eje X = meses del período seleccionado (Ene..Dic o los meses del rango)
+  var range    = getDashRange();
+  var fromM    = range.from.getMonth();
+  var toM      = range.to.getMonth();
+  var fromY    = range.from.getFullYear();
+  var toY      = range.to.getFullYear();
+  var meses    = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  // Construir labels de meses (eje X = meses del año, 1-12)
+  // Para comparativo interanual el eje siempre muestra los meses del período base
+  var monthKeys = [];
+  if (dashPeriodo === 'anio' || yearFilterVal === 'todos') {
+    // Mostrar todos los meses del año
+    for (var m = 0; m < 12; m++) monthKeys.push(m);
+  } else {
+    // Mostrar solo meses del rango
+    for (var m = fromM; m <= toM; m++) monthKeys.push(m);
+  }
+  var labels = monthKeys.map(function(m) { return meses[m]; });
+
+  // Función para agrupar cotizaciones de un año dado por mes
+  function bucketsForYear(yr) {
+    var b = {};
+    monthKeys.forEach(function(m) { b[m] = { cantidad: 0, valor: 0, aceptadas: 0 }; });
+    allCots.forEach(function(cot) {
+      if (!cot.fecha) return;
+      var d = new Date(cot.fecha);
+      if (d.getFullYear() !== yr) return;
+      var m = d.getMonth();
+      if (!b[m]) return;
+      b[m].cantidad++;
+      b[m].valor += (cot.total || 0);
+      if (cot.estado === 'Aceptada') b[m].aceptadas++;
+    });
+    return b;
+  }
+
+  // Construir datasets — un par (total + aceptadas) por año
+  // Año más reciente = color sólido + área rellena. Anteriores = difuminados + línea punteada aceptadas
+  var datasets = [];
+  var currentYear = new Date().getFullYear();
+
+  years.forEach(function(yr, idx) {
+    var colorIdx = idx % yearColors.solid.length;
+    var bkt      = bucketsForYear(yr);
+    var isCurrent = yr === currentYear;
+
+    var dataMain = monthKeys.map(function(m) {
+      return chartMode === 'cantidad' ? bkt[m].cantidad : bkt[m].valor;
+    });
+    var dataAcep = monthKeys.map(function(m) {
+      return chartMode === 'cantidad'
+        ? bkt[m].aceptadas
+        : bkt[m].aceptadas * (bkt[m].valor / (bkt[m].cantidad || 1));
+    });
+
+    // Serie principal (total)
+    datasets.push({
+      label: (chartMode === 'cantidad' ? 'Total ' : 'Valor ') + yr,
+      data:  dataMain,
+      borderColor:       yearColors.solid[colorIdx],
+      backgroundColor:   isCurrent ? 'rgba(79,142,247,0.08)' : yearColors.faded[colorIdx],
+      borderWidth:       isCurrent ? 2.5 : 1.8,
+      pointBackgroundColor: yearColors.solid[colorIdx],
+      pointRadius:       isCurrent ? 4 : 3,
+      pointHoverRadius:  6,
+      tension:           0.4,
+      fill:              isCurrent,
+      borderDash:        []
+    });
+
+    // Serie aceptadas (punteada)
+    datasets.push({
+      label: 'Aceptadas ' + yr,
+      data:  dataAcep,
+      borderColor:       yearColors.solid[colorIdx],
+      backgroundColor:   'transparent',
+      borderWidth:       isCurrent ? 1.8 : 1.4,
+      pointBackgroundColor: yearColors.solid[colorIdx],
+      pointRadius:       isCurrent ? 3 : 2,
+      pointHoverRadius:  5,
+      tension:           0.4,
+      fill:              false,
+      borderDash:        [5, 4]
+    });
+  });
 
   var ctx = canvas.getContext('2d');
   dashChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: chartMode === 'cantidad' ? 'Total propuestas' : 'Valor total',
-          data: dataMain,
-          borderColor: '#4f8ef7',
-          backgroundColor: 'rgba(79,142,247,0.08)',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#4f8ef7',
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          tension: 0.4,
-          fill: true
-        },
-        {
-          label: chartMode === 'cantidad' ? 'Aceptadas' : 'Valor aceptado',
-          data: dataAcep,
-          borderColor: '#3FB950',
-          backgroundColor: 'rgba(63,185,80,0.06)',
-          borderWidth: 2,
-          pointBackgroundColor: '#3FB950',
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          tension: 0.4,
-          fill: true
-        }
-      ]
-    },
+    data: { labels: labels, datasets: datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -1080,8 +1161,13 @@ function drawChart(cots) {
         legend: {
           labels: {
             color: '#8B949E',
-            font: { family: 'Space Grotesk', size: 12 },
-            boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'circle'
+            font: { family: 'Space Grotesk', size: 11 },
+            boxWidth: 20, boxHeight: 2,
+            usePointStyle: false,
+            filter: function(item) {
+              // Solo mostrar en leyenda las series "Total" (no las aceptadas duplicadas)
+              return item.text.indexOf('Total') === 0 || item.text.indexOf('Valor') === 0 || item.text.indexOf('Aceptadas ' + currentYear) === 0;
+            }
           }
         },
         tooltip: {
@@ -1089,30 +1175,32 @@ function drawChart(cots) {
           borderColor: '#30363D',
           borderWidth: 1,
           titleColor: '#E6EDF3',
-          bodyColor: '#8B949E',
-          padding: 10,
+          bodyColor:  '#8B949E',
+          padding: 12,
           callbacks: {
             label: function(ctx) {
               var v = ctx.parsed.y;
-              return ' ' + ctx.dataset.label + ': ' + (chartMode==='valor' ? fmtCOP(v) : v);
+              if (v === 0) return null;
+              return '  ' + ctx.dataset.label + ': ' + (chartMode === 'valor' ? fmtCOP(v) : v);
             }
           }
         }
       },
       scales: {
         x: {
-          grid: { color: 'rgba(48,54,61,0.6)' },
+          grid:  { color: 'rgba(48,54,61,0.5)' },
           ticks: { color: '#484F58', font: { family: 'JetBrains Mono', size: 11 } }
         },
         y: {
-          grid: { color: 'rgba(48,54,61,0.6)' },
+          grid:  { color: 'rgba(48,54,61,0.5)' },
           ticks: {
             color: '#484F58',
-            font: { family: 'JetBrains Mono', size: 11 },
+            font:  { family: 'JetBrains Mono', size: 11 },
             callback: function(v) {
-              return chartMode === 'valor'
-                ? (v >= 1000000 ? '$'+(v/1000000).toFixed(1)+'M' : '$'+(v/1000).toFixed(0)+'K')
-                : v;
+              if (chartMode === 'valor') {
+                return v >= 1000000 ? '$'+(v/1000000).toFixed(1)+'M' : v > 0 ? '$'+(v/1000).toFixed(0)+'K' : '$0';
+              }
+              return v;
             }
           }
         }
