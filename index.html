@@ -894,12 +894,20 @@ function renderDashboard(el, actions) {
     '<div class="table-wrap" style="padding:20px;margin-bottom:16px">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">' +
         '<span style="font-size:13px;font-weight:600">Propuestas por mes — comparativo interanual</span>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
           // Filtro año
           '<select id="yearFilter" class="form-select" style="width:110px;padding:5px 8px;font-size:12px" onchange="yearFilterVal=this.value;refreshDash()">' +
             '<option value="todos">Todos los años</option>' +
             yearOptions() +
           '</select>' +
+          // Slider transparencia años secundarios
+          '<div style="display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px">' +
+            '<span style="font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);white-space:nowrap">Opacidad otros</span>' +
+            '<input type="range" id="fadeSlider" min="0" max="100" value="' + Math.round(fadeAlpha*100) + '" ' +
+              'style="width:80px;accent-color:var(--accent);cursor:pointer;height:3px" ' +
+              'oninput="fadeAlpha=parseInt(this.value)/100;document.getElementById(\'fadeVal\').textContent=this.value+\'%\';drawChart(cotizaciones)">' +
+            '<span id="fadeVal" style="font-family:var(--mono);font-size:10px;color:var(--accent);min-width:28px">' + Math.round(fadeAlpha*100) + '%</span>' +
+          '</div>' +
           // Modo cantidad/valor
           '<div class="pill-tabs" id="chartModeTabs">' +
             '<button class="pill-tab active" id="cmCant" onclick="setChartMode(\'cantidad\')">Cantidad</button>' +
@@ -915,8 +923,9 @@ function renderDashboard(el, actions) {
   refreshDash();
 }
 
-var chartMode    = 'cantidad';
-var yearFilterVal = 'todos';
+var chartMode      = 'cantidad';
+var yearFilterVal  = 'todos';
+var fadeAlpha      = 0.25;  // transparencia de años no protagonistas (0.0 - 1.0)
 
 // Generar opciones de año basadas en los datos
 function yearOptions() {
@@ -1105,8 +1114,8 @@ function drawChart(allCots) {
     var isProta  = yr === protagonista;
 
     // Opacidades: protagonista 100%, resto 40%
-    var lineAlpha  = isProta ? 1.0  : 0.35;
-    var pointAlpha = isProta ? 1.0  : 0.35;
+    var lineAlpha  = isProta ? 1.0  : fadeAlpha;
+    var pointAlpha = isProta ? 1.0  : fadeAlpha;
     var fillAlpha  = isProta ? 0.10 : 0.0;
 
     var bkt      = bucketsForYear(yr);
