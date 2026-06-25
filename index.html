@@ -757,6 +757,45 @@ option { background:var(--surface2); }
   </div>
 </div>
 
+<!-- Pantalla Cambio de Contraseña (primer ingreso) -->
+<div id="cambioPassWrap" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);width:min(420px,92vw);padding:36px;box-shadow:0 24px 64px rgba(0,0,0,.5)">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+      <div style="width:40px;height:40px;border-radius:50%;background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--accent)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+      </div>
+      <div>
+        <div style="font-size:16px;font-weight:700">Bienvenido al CRM Pixel</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">Por seguridad debes crear una contraseña privada</div>
+      </div>
+    </div>
+    <div style="background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.25);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--yellow);margin-bottom:20px">
+      Esta es tu primera sesión. La contraseña temporal que recibiste por correo debe ser reemplazada ahora.
+    </div>
+    <div id="cambioPassErr" style="display:none;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:var(--radius);padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:14px"></div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Nueva contraseña</label>
+      <input id="newPass1" type="password" class="form-input" placeholder="Mínimo 8 caracteres">
+    </div>
+    <div class="form-group" style="margin-bottom:24px">
+      <label class="form-label">Confirmar contraseña</label>
+      <input id="newPass2" type="password" class="form-input" placeholder="Repite la contraseña">
+    </div>
+    <div id="passStrength" style="margin-bottom:20px;display:none">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3)">Fortaleza</span>
+        <span id="passStrengthLabel" style="font-family:var(--mono);font-size:10px"></span>
+      </div>
+      <div style="height:4px;background:var(--surface3);border-radius:2px;overflow:hidden">
+        <div id="passStrengthBar" style="height:100%;border-radius:2px;transition:all .3s;width:0%"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:10px" onclick="doChangePrimerPass()">
+      Guardar contraseña y entrar al CRM
+    </button>
+  </div>
+</div>
+
 <!-- Loading & Toast -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
@@ -812,17 +851,107 @@ var currentPage  = 'dashboard';
 auth.onAuthStateChanged(function(u) {
   if (u) {
     currentUser = u;
-    document.getElementById('loginWrap').style.display  = 'none';
-    document.getElementById('appWrap').style.display    = 'flex';
-    var initials = (u.email || 'U')[0].toUpperCase();
-    document.getElementById('userAvatar').textContent = initials;
-    document.getElementById('userName').textContent   = u.email;
-    loadAll();
+    // Verificar si es primer ingreso
+    db.collection('usuarios').where('email', '==', u.email).get().then(function(snap) {
+      if (!snap.empty && snap.docs[0].data().primerIngreso === true) {
+        // Mostrar pantalla de cambio de contraseña
+        document.getElementById('loginWrap').style.display      = 'none';
+        document.getElementById('appWrap').style.display        = 'none';
+        document.getElementById('cambioPassWrap').style.display = 'flex';
+        document.getElementById('newPass1').addEventListener('input', evaluarFortaleza);
+        document.getElementById('newPass2').addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') doChangePrimerPass();
+        });
+      } else {
+        // Ingreso normal
+        document.getElementById('loginWrap').style.display      = 'none';
+        document.getElementById('cambioPassWrap').style.display = 'none';
+        document.getElementById('appWrap').style.display        = 'flex';
+        var initials = (u.email || 'U')[0].toUpperCase();
+        document.getElementById('userAvatar').textContent = initials;
+        document.getElementById('userName').textContent   = u.email;
+        loadAll();
+      }
+    }).catch(function() {
+      // Si falla la consulta, entrar normal
+      document.getElementById('loginWrap').style.display  = 'none';
+      document.getElementById('appWrap').style.display    = 'flex';
+      var initials = (u.email || 'U')[0].toUpperCase();
+      document.getElementById('userAvatar').textContent = initials;
+      document.getElementById('userName').textContent   = u.email;
+      loadAll();
+    });
   } else {
-    document.getElementById('loginWrap').style.display  = 'flex';
-    document.getElementById('appWrap').style.display    = 'none';
+    document.getElementById('loginWrap').style.display      = 'flex';
+    document.getElementById('appWrap').style.display        = 'none';
+    document.getElementById('cambioPassWrap').style.display = 'none';
   }
 });
+
+function evaluarFortaleza() {
+  var pass = document.getElementById('newPass1').value;
+  var bar  = document.getElementById('passStrengthBar');
+  var lbl  = document.getElementById('passStrengthLabel');
+  var wrap = document.getElementById('passStrength');
+  if (!pass) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  var score = 0;
+  if (pass.length >= 8)  score++;
+  if (pass.length >= 12) score++;
+  if (/[A-Z]/.test(pass)) score++;
+  if (/[0-9]/.test(pass)) score++;
+  if (/[^A-Za-z0-9]/.test(pass)) score++;
+  var configs = [
+    { w:'20%',  color:'var(--red)',    label:'Muy débil' },
+    { w:'40%',  color:'var(--orange)', label:'Débil' },
+    { w:'60%',  color:'var(--yellow)', label:'Regular' },
+    { w:'80%',  color:'var(--accent)', label:'Buena' },
+    { w:'100%', color:'var(--green)',  label:'Excelente' }
+  ];
+  var cfg = configs[Math.min(score, 4)];
+  bar.style.width      = cfg.w;
+  bar.style.background = cfg.color;
+  lbl.style.color      = cfg.color;
+  lbl.textContent      = cfg.label;
+}
+
+function doChangePrimerPass() {
+  var p1  = document.getElementById('newPass1').value;
+  var p2  = document.getElementById('newPass2').value;
+  var err = document.getElementById('cambioPassErr');
+  err.style.display = 'none';
+
+  if (p1.length < 8) {
+    err.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+    err.style.display = 'block'; return;
+  }
+  if (p1 !== p2) {
+    err.textContent = 'Las contraseñas no coinciden.';
+    err.style.display = 'block'; return;
+  }
+
+  // Cambiar contraseña en Firebase Auth
+  auth.currentUser.updatePassword(p1).then(function() {
+    // Marcar primerIngreso como false en Firestore
+    return db.collection('usuarios').where('email', '==', auth.currentUser.email).get();
+  }).then(function(snap) {
+    if (!snap.empty) {
+      return snap.docs[0].ref.update({ primerIngreso: false });
+    }
+  }).then(function() {
+    // Entrar al sistema
+    document.getElementById('cambioPassWrap').style.display = 'none';
+    document.getElementById('appWrap').style.display        = 'flex';
+    var u = auth.currentUser;
+    document.getElementById('userAvatar').textContent = (u.email || 'U')[0].toUpperCase();
+    document.getElementById('userName').textContent   = u.email;
+    loadAll();
+    showToast('Contraseña actualizada. Bienvenido al CRM Pixel', 'ok');
+  }).catch(function(e) {
+    err.textContent = 'Error: ' + (e.message || 'No se pudo actualizar la contraseña.');
+    err.style.display = 'block';
+  });
+}
 
 function doLogin() {
   var email = document.getElementById('loginEmail').value.trim();
@@ -2220,14 +2349,15 @@ function saveUsuario() {
       }
       // Guardar en Firestore
       return db.collection('usuarios').add({
-        nombre:    nombre,
-        email:     email,
-        cargo:     cargo,
-        rol:       rol,
-        activo:    true,
-        uid:       authData.localId || '',
-        creadoEn:  firebase.firestore.FieldValue.serverTimestamp(),
-        creadoPor: currentUser ? currentUser.email : ''
+        nombre:       nombre,
+        email:        email,
+        cargo:        cargo,
+        rol:          rol,
+        activo:       true,
+        primerIngreso: true,
+        uid:          authData.localId || '',
+        creadoEn:     firebase.firestore.FieldValue.serverTimestamp(),
+        creadoPor:    currentUser ? currentUser.email : ''
       }).then(function() {
         hideLoading();
         closeModal('modalUsuario');
