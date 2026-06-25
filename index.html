@@ -2091,17 +2091,22 @@ function renderUsuarios(el, actions) {
       (lista.length === 0
         ? '<tr><td colspan="6"><div class="empty-state"><p>Sin usuarios registrados.</p><p style="font-size:12px">Agrega el primer usuario para que pueda acceder al CRM.</p>' + (esAdmin ? '<button class="btn btn-primary" onclick="openModalUsuario()">Agregar usuario</button>' : '') + '</div></td></tr>'
         : lista.map(function(u) {
-            var rolBadge = u.rol === 'admin' ? 'badge-blue' : u.rol === 'comercial' ? 'badge-green' : 'badge-gray';
-            var rolLabel = u.rol === 'admin' ? 'Admin' : u.rol === 'comercial' ? 'Comercial' : 'Solo lectura';
-            var fecha = u.creadoEn && u.creadoEn.toDate ? u.creadoEn.toDate().toLocaleDateString('es-CO') : '—';
-            return '<tr>' +
-              '<td style="font-weight:500">' + esc(u.nombre || '') + '</td>' +
+            var rolBadge  = u.rol === 'admin' ? 'badge-blue' : u.rol === 'comercial' ? 'badge-green' : 'badge-gray';
+            var rolLabel  = u.rol === 'admin' ? 'Admin' : u.rol === 'comercial' ? 'Comercial' : 'Solo lectura';
+            var fecha     = u.creadoEn && u.creadoEn.toDate ? u.creadoEn.toDate().toLocaleDateString('es-CO') : '—';
+            var inactivo  = u.activo === false;
+            return '<tr style="opacity:' + (inactivo ? '0.45' : '1') + '">' +
+              '<td style="font-weight:500">' + esc(u.nombre || '') + (inactivo ? ' <span class="badge badge-red" style="font-size:10px">Inactivo</span>' : '') + '</td>' +
               '<td class="td-mono" style="font-size:12px">' + esc(u.email || '') + '</td>' +
               '<td style="color:var(--text2)">' + esc(u.cargo || '') + '</td>' +
               '<td><span class="badge ' + rolBadge + '">' + rolLabel + '</span></td>' +
               '<td class="td-mono" style="font-size:11px;color:var(--text3)">' + fecha + '</td>' +
               (esAdmin ? '<td><div class="actions-cell">' +
-                (u.email !== adminEmail ? '<button class="btn btn-ghost btn-sm" onclick="deleteUsuario(\'' + u.id + '\',\'' + esc(u.nombre) + '\')">&#128465;</button>' : '<span style="font-size:11px;color:var(--text3)">Admin principal</span>') +
+                (u.email !== adminEmail
+                  ? (inactivo
+                    ? '<button class="btn btn-ghost btn-sm" style="color:var(--green)" onclick="reactivarUsuario(\'' + u.id + '\',\'' + esc(u.nombre) + '\')" title="Reactivar">↺ Reactivar</button>'
+                    : '<button class="btn btn-ghost btn-sm" onclick="deleteUsuario(\'' + u.id + '\',\'' + esc(u.nombre) + '\')" title="Revocar acceso">&#128683; Revocar</button>')
+                  : '<span style="font-size:11px;color:var(--text3)">Admin principal</span>') +
               '</div></td>' : '') +
             '</tr>';
           }).join('')
@@ -2147,33 +2152,65 @@ function saveUsuario() {
   var rolLabel = { admin: 'Administrador', comercial: 'Comercial', viewer: 'Solo lectura' }[rol] || rol;
 
   // Paso 1: Crear en Firebase Auth
-  fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + apiKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: email, password: pass, returnSecureToken: false })
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(data) {
-    if (data.error) {
-      hideLoading();
-      var msg = data.error.message === 'EMAIL_EXISTS' ? 'Este correo ya está registrado' : data.error.message;
-      showToast('Error: ' + msg, 'err');
-      throw new Error('auth_error');
+  // Verificar si el correo ya existe en Firestore (activo o inactivo)
+  db.collection('usuarios').where('email', '==', email).get().then(function(snap) {
+    if (!snap.empty) {
+      var doc  = snap.docs[0];
+      var data = doc.data();
+      if (data.activo !== false) {
+        // Usuario activo — no duplicar
+        hideLoading();
+        showToast('Este correo ya tiene acceso activo al CRM', 'err');
+        throw new Error('ya_existe');
+      }
+      // Usuario inactivo — reactivar sin tocar Firebase Auth
+      return doc.ref.update({
+        nombre:    nombre,
+        cargo:     cargo,
+        rol:       rol,
+        activo:    true,
+        reactivadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+        creadoPor: currentUser ? currentUser.email : ''
+      }).then(function() { return { reactivado: true, email: email }; });
     }
-    // Paso 2: Guardar perfil en Firestore
-    return db.collection('usuarios').add({
-      nombre:    nombre,
-      email:     email,
-      cargo:     cargo,
-      rol:       rol,
-      uid:       data.localId || '',
-      creadoEn:  firebase.firestore.FieldValue.serverTimestamp(),
-      creadoPor: currentUser ? currentUser.email : ''
+    // Usuario nuevo — crear en Firebase Auth
+    return fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + apiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: pass, returnSecureToken: false })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) {
+        hideLoading();
+        var msg = data.error.message === 'EMAIL_EXISTS'
+          ? 'Este correo ya existe en Firebase Auth. Ve a Firebase Console → Authentication y elimínalo manualmente, luego intenta de nuevo.'
+          : data.error.message;
+        showToast(msg, 'err');
+        throw new Error('auth_error');
+      }
+      return db.collection('usuarios').add({
+        nombre:    nombre,
+        email:     email,
+        cargo:     cargo,
+        rol:       rol,
+        activo:    true,
+        uid:       data.localId || '',
+        creadoEn:  firebase.firestore.FieldValue.serverTimestamp(),
+        creadoPor: currentUser ? currentUser.email : ''
+      }).then(function() { return { reactivado: false, email: email }; });
     });
   })
-  .then(function(docRef) {
-    if (!docRef) return;
-    // Paso 3: Enviar email de bienvenida vía EmailJS
+  .then(function(result) {
+    if (!result) return;
+    if (result.reactivado) {
+      closeModal('modalUsuario');
+      hideLoading();
+      showToast('Acceso reactivado para ' + result.email, 'ok');
+      navTo('usuarios');
+      return;
+    }
+    // Usuario nuevo — enviar email de bienvenida
     return emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
       to_email: email,
       nombre:   nombre,
@@ -2182,80 +2219,47 @@ function saveUsuario() {
       rol:      rolLabel,
       cargo:    cargo || '—',
       url:      window.location.href.split('?')[0]
+    }).then(function() {
+      closeModal('modalUsuario');
+      hideLoading();
+      showToast('Usuario creado — correo de bienvenida enviado a ' + email, 'ok');
+      navTo('usuarios');
+    }).catch(function() {
+      closeModal('modalUsuario');
+      hideLoading();
+      showToast('Usuario creado. No se pudo enviar el correo (verifica EmailJS)', 'ok');
+      navTo('usuarios');
     });
   })
-  .then(function(result) {
-    if (!result) return;
-    closeModal('modalUsuario');
-    hideLoading();
-    showToast('Usuario creado — correo de bienvenida enviado a ' + email, 'ok');
-    navTo('usuarios');
-  })
   .catch(function(e) {
-    if (e.message === 'auth_error') return; // ya manejado
-    // Si falla el email pero el usuario fue creado, igual mostrar éxito
+    if (e.message === 'auth_error' || e.message === 'ya_existe') return;
     hideLoading();
-    closeModal('modalUsuario');
-    if (e && e.status) {
-      // Error de EmailJS — usuario creado pero email falló
-      showToast('Usuario creado. No se pudo enviar el correo (verifica la plantilla en EmailJS)', 'ok');
-    } else {
-      showToast('Error: ' + e.message, 'err');
-    }
-    navTo('usuarios');
+    showToast('Error: ' + e.message, 'err');
   });
 }
 
 function deleteUsuario(id, nombre) {
-  if (!confirm('Eliminar a ' + nombre + ' del CRM?\n\nEsto eliminara su acceso completamente.')) return;
+  if (!confirm('Revocar acceso de ' + nombre + '?\n\nEl usuario quedara inactivo y no podra ingresar al CRM.')) return;
   showLoading();
-
-  // Paso 1: obtener el UID del usuario desde Firestore
-  db.collection('usuarios').doc(id).get().then(function(doc) {
-    var uid = doc.exists ? doc.data().uid : null;
-
-    // Paso 2: borrar de Firestore
-    return db.collection('usuarios').doc(id).delete().then(function() {
-      return uid;
-    });
-  })
-  .then(function(uid) {
-    if (!uid) {
-      // No tenemos UID — solo se borró de Firestore
-      hideLoading();
-      showToast('Registro eliminado. No se encontro UID para borrar de Auth.', 'ok');
-      navTo('usuarios');
-      return;
-    }
-
-    // Paso 3: borrar de Firebase Auth via REST API
-    // Requiere que el admin haga login para obtener su idToken fresco
-    return auth.currentUser.getIdToken(true).then(function(idToken) {
-      return fetch(
-        'https://identitytoolkit.googleapis.com/v1/projects/' + firebaseConfig.projectId + '/accounts/' + uid + '?key=' + firebaseConfig.apiKey,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': 'Bearer ' + idToken,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-    }).then(function(res) {
-      hideLoading();
-      if (res.ok || res.status === 404) {
-        showToast('Usuario eliminado completamente del sistema', 'ok');
-      } else {
-        // Borrado de Firestore OK pero Auth falló — igual éxito parcial
-        showToast('Registro eliminado. Borra manualmente en Firebase Auth si es necesario.', 'ok');
-      }
-      navTo('usuarios');
-    });
-  })
-  .catch(function(e) {
+  // Marcar como inactivo en Firestore (no borramos para conservar historial)
+  db.collection('usuarios').doc(id).update({
+    activo:     false,
+    inactivoEn: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function() {
     hideLoading();
-    showToast('Error: ' + e.message, 'err');
-  });
+    showToast('Acceso revocado para ' + nombre, 'ok');
+    navTo('usuarios');
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+}
+
+function reactivarUsuario(id, nombre) {
+  if (!confirm('Reactivar acceso de ' + nombre + '?')) return;
+  showLoading();
+  db.collection('usuarios').doc(id).update({ activo: true, reactivadoEn: firebase.firestore.FieldValue.serverTimestamp() }).then(function() {
+    hideLoading();
+    showToast('Acceso reactivado para ' + nombre, 'ok');
+    navTo('usuarios');
+  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
 }
 
 // ═══════════════════════════════════════════════════════
