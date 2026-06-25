@@ -2207,12 +2207,55 @@ function saveUsuario() {
 }
 
 function deleteUsuario(id, nombre) {
-  if (!confirm('Eliminar a ' + nombre + ' del CRM? Perdera acceso al sistema.')) return;
+  if (!confirm('Eliminar a ' + nombre + ' del CRM?\n\nEsto eliminara su acceso completamente.')) return;
   showLoading();
-  db.collection('usuarios').doc(id).delete().then(function() {
-    showToast('Usuario eliminado del registro. Recuerda eliminarlo tambien en Firebase Auth si es necesario.', 'ok');
-    navTo('usuarios');
-  }).catch(function(e) { hideLoading(); showToast('Error: ' + e.message, 'err'); });
+
+  // Paso 1: obtener el UID del usuario desde Firestore
+  db.collection('usuarios').doc(id).get().then(function(doc) {
+    var uid = doc.exists ? doc.data().uid : null;
+
+    // Paso 2: borrar de Firestore
+    return db.collection('usuarios').doc(id).delete().then(function() {
+      return uid;
+    });
+  })
+  .then(function(uid) {
+    if (!uid) {
+      // No tenemos UID — solo se borró de Firestore
+      hideLoading();
+      showToast('Registro eliminado. No se encontro UID para borrar de Auth.', 'ok');
+      navTo('usuarios');
+      return;
+    }
+
+    // Paso 3: borrar de Firebase Auth via REST API
+    // Requiere que el admin haga login para obtener su idToken fresco
+    return auth.currentUser.getIdToken(true).then(function(idToken) {
+      return fetch(
+        'https://identitytoolkit.googleapis.com/v1/projects/' + firebaseConfig.projectId + '/accounts/' + uid + '?key=' + firebaseConfig.apiKey,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + idToken,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }).then(function(res) {
+      hideLoading();
+      if (res.ok || res.status === 404) {
+        showToast('Usuario eliminado completamente del sistema', 'ok');
+      } else {
+        // Borrado de Firestore OK pero Auth falló — igual éxito parcial
+        showToast('Registro eliminado. Borra manualmente en Firebase Auth si es necesario.', 'ok');
+      }
+      navTo('usuarios');
+    });
+  })
+  .catch(function(e) {
+    hideLoading();
+    showToast('Error: ' + e.message, 'err');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
