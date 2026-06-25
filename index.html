@@ -763,6 +763,8 @@ option { background:var(--surface2); }
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- EmailJS para notificaciones de bienvenida -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <!-- Chart.js para gráficas del Dashboard -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- jsPDF + html2canvas para descarga PDF directa -->
@@ -784,6 +786,12 @@ var firebaseConfig = {
   appId: "1:662383849118:web:1e06282a066e9355bd158f"
 };
 firebase.initializeApp(firebaseConfig);
+
+// ─── EmailJS ───
+var EMAILJS_SERVICE  = 'service_8j2tfv3';
+var EMAILJS_TEMPLATE = 'template_k47w4z8';
+var EMAILJS_KEY      = 'vbKF2HvMgWueSdv24';
+emailjs.init({ publicKey: EMAILJS_KEY });
 var auth = firebase.auth();
 var db   = firebase.firestore();
 
@@ -2135,21 +2143,24 @@ function saveUsuario() {
 
   showLoading();
 
-  // Crear usuario en Firebase Auth usando la API REST (sin perder la sesión actual)
-  var apiKey = firebaseConfig.apiKey;
+  var apiKey  = firebaseConfig.apiKey;
+  var rolLabel = { admin: 'Administrador', comercial: 'Comercial', viewer: 'Solo lectura' }[rol] || rol;
+
+  // Paso 1: Crear en Firebase Auth
   fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + apiKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email, password: pass, returnSecureToken: false })
-  }).then(function(res) { return res.json(); })
+  })
+  .then(function(res) { return res.json(); })
   .then(function(data) {
     if (data.error) {
       hideLoading();
       var msg = data.error.message === 'EMAIL_EXISTS' ? 'Este correo ya está registrado' : data.error.message;
       showToast('Error: ' + msg, 'err');
-      return;
+      throw new Error('auth_error');
     }
-    // Guardar perfil en Firestore
+    // Paso 2: Guardar perfil en Firestore
     return db.collection('usuarios').add({
       nombre:    nombre,
       email:     email,
@@ -2159,14 +2170,39 @@ function saveUsuario() {
       creadoEn:  firebase.firestore.FieldValue.serverTimestamp(),
       creadoPor: currentUser ? currentUser.email : ''
     });
-  }).then(function() {
-    if (!arguments[0]) return; // si ya hubo error
+  })
+  .then(function(docRef) {
+    if (!docRef) return;
+    // Paso 3: Enviar email de bienvenida vía EmailJS
+    return emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: email,
+      nombre:   nombre,
+      email:    email,
+      password: pass,
+      rol:      rolLabel,
+      cargo:    cargo || '—',
+      url:      window.location.href.split('?')[0]
+    });
+  })
+  .then(function(result) {
+    if (!result) return;
     closeModal('modalUsuario');
-    showToast('Usuario ' + email + ' creado exitosamente', 'ok');
-    navTo('usuarios');
-  }).catch(function(e) {
     hideLoading();
-    showToast('Error: ' + e.message, 'err');
+    showToast('Usuario creado — correo de bienvenida enviado a ' + email, 'ok');
+    navTo('usuarios');
+  })
+  .catch(function(e) {
+    if (e.message === 'auth_error') return; // ya manejado
+    // Si falla el email pero el usuario fue creado, igual mostrar éxito
+    hideLoading();
+    closeModal('modalUsuario');
+    if (e && e.status) {
+      // Error de EmailJS — usuario creado pero email falló
+      showToast('Usuario creado. No se pudo enviar el correo (verifica la plantilla en EmailJS)', 'ok');
+    } else {
+      showToast('Error: ' + e.message, 'err');
+    }
+    navTo('usuarios');
   });
 }
 
