@@ -2135,12 +2135,37 @@ function openModalUsuario() {
   openModal('modalUsuario');
 }
 
+function enviarEmailBienvenida(nombre, email, pass, rolLabel, cargo) {
+  // Función independiente — falla silenciosamente sin afectar el flujo principal
+  try {
+    emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: email,
+      nombre:   nombre,
+      email:    email,
+      password: pass,
+      rol:      rolLabel,
+      cargo:    cargo || 'No especificado',
+      url:      window.location.origin + window.location.pathname
+    }).then(function(resp) {
+      console.log('EmailJS OK:', resp.status, resp.text);
+      showToast('Correo de bienvenida enviado a ' + email, 'ok');
+    }).catch(function(err) {
+      console.error('EmailJS error:', err);
+      showToast('Usuario creado. Fallo el correo: ' + (err.text || err.status || 'error desconocido'), 'err');
+    });
+  } catch(e) {
+    console.error('EmailJS excepcion:', e);
+  }
+}
+
 function saveUsuario() {
-  var nombre = document.getElementById('uNombre').value.trim();
-  var email  = document.getElementById('uEmail').value.trim();
-  var pass   = document.getElementById('uPass').value;
-  var cargo  = document.getElementById('uCargo').value.trim();
-  var rol    = document.getElementById('uRol').value;
+  var nombre   = document.getElementById('uNombre').value.trim();
+  var email    = document.getElementById('uEmail').value.trim();
+  var pass     = document.getElementById('uPass').value;
+  var cargo    = document.getElementById('uCargo').value.trim();
+  var rol      = document.getElementById('uRol').value;
+  var rolLabel = { admin: 'Administrador', comercial: 'Comercial', viewer: 'Solo lectura' }[rol] || rol;
+  var apiKey   = firebaseConfig.apiKey;
 
   if (!nombre) { showToast('El nombre es obligatorio', 'err'); return; }
   if (!email)  { showToast('El correo es obligatorio', 'err'); return; }
@@ -2148,91 +2173,75 @@ function saveUsuario() {
 
   showLoading();
 
-  var apiKey  = firebaseConfig.apiKey;
-  var rolLabel = { admin: 'Administrador', comercial: 'Comercial', viewer: 'Solo lectura' }[rol] || rol;
+  // Verificar si el correo ya existe en Firestore
+  db.collection('usuarios').where('email', '==', email).get()
+  .then(function(snap) {
 
-  // Paso 1: Crear en Firebase Auth
-  // Verificar si el correo ya existe en Firestore (activo o inactivo)
-  db.collection('usuarios').where('email', '==', email).get().then(function(snap) {
+    // ─── Caso A: Ya existe en Firestore ───
     if (!snap.empty) {
-      var doc  = snap.docs[0];
-      var data = doc.data();
-      if (data.activo !== false) {
-        // Usuario activo — no duplicar
+      var docSnap = snap.docs[0];
+      var docData = docSnap.data();
+
+      if (docData.activo !== false) {
         hideLoading();
         showToast('Este correo ya tiene acceso activo al CRM', 'err');
-        throw new Error('ya_existe');
+        return;
       }
-      // Usuario inactivo — reactivar sin tocar Firebase Auth
-      return doc.ref.update({
-        nombre:    nombre,
-        cargo:     cargo,
-        rol:       rol,
-        activo:    true,
+      // Inactivo — reactivar
+      return docSnap.ref.update({
+        nombre: nombre, cargo: cargo, rol: rol,
+        activo: true,
         reactivadoEn: firebase.firestore.FieldValue.serverTimestamp(),
         creadoPor: currentUser ? currentUser.email : ''
-      }).then(function() { return { reactivado: true, email: email }; });
+      }).then(function() {
+        hideLoading();
+        closeModal('modalUsuario');
+        showToast('Acceso reactivado para ' + nombre, 'ok');
+        navTo('usuarios');
+        loadAll();
+      });
     }
-    // Usuario nuevo — crear en Firebase Auth
+
+    // ─── Caso B: Usuario nuevo ───
     return fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + apiKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email, password: pass, returnSecureToken: false })
     })
     .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data.error) {
+    .then(function(authData) {
+      if (authData.error) {
         hideLoading();
-        var msg = data.error.message === 'EMAIL_EXISTS'
-          ? 'Este correo ya existe en Firebase Auth. Ve a Firebase Console → Authentication y elimínalo manualmente, luego intenta de nuevo.'
-          : data.error.message;
+        var msg = authData.error.message === 'EMAIL_EXISTS'
+          ? 'Correo ya existe en Firebase Auth. Eliminalo manualmente en Firebase Console → Authentication.'
+          : authData.error.message;
         showToast(msg, 'err');
-        throw new Error('auth_error');
+        return;
       }
+      // Guardar en Firestore
       return db.collection('usuarios').add({
         nombre:    nombre,
         email:     email,
         cargo:     cargo,
         rol:       rol,
         activo:    true,
-        uid:       data.localId || '',
+        uid:       authData.localId || '',
         creadoEn:  firebase.firestore.FieldValue.serverTimestamp(),
         creadoPor: currentUser ? currentUser.email : ''
-      }).then(function() { return { reactivado: false, email: email }; });
+      }).then(function() {
+        hideLoading();
+        closeModal('modalUsuario');
+        showToast('Usuario ' + nombre + ' creado exitosamente', 'ok');
+        navTo('usuarios');
+        loadAll();
+        // Enviar email DESPUÉS de cerrar modal — independiente
+        setTimeout(function() {
+          enviarEmailBienvenida(nombre, email, pass, rolLabel, cargo);
+        }, 800);
+      });
     });
-  })
-  .then(function(result) {
-    if (!result) return;
-    if (result.reactivado) {
-      closeModal('modalUsuario');
-      hideLoading();
-      showToast('Acceso reactivado para ' + result.email, 'ok');
-      navTo('usuarios');
-      return;
-    }
-    // Usuario nuevo — enviar email de bienvenida
-    return emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-      to_email: email,
-      nombre:   nombre,
-      email:    email,
-      password: pass,
-      rol:      rolLabel,
-      cargo:    cargo || '—',
-      url:      window.location.href.split('?')[0]
-    }).then(function() {
-      closeModal('modalUsuario');
-      hideLoading();
-      showToast('Usuario creado — correo de bienvenida enviado a ' + email, 'ok');
-      navTo('usuarios');
-    }).catch(function() {
-      closeModal('modalUsuario');
-      hideLoading();
-      showToast('Usuario creado. No se pudo enviar el correo (verifica EmailJS)', 'ok');
-      navTo('usuarios');
-    });
-  })
-  .catch(function(e) {
-    if (e.message === 'auth_error' || e.message === 'ya_existe') return;
+
+  }).catch(function(e) {
     hideLoading();
     showToast('Error: ' + e.message, 'err');
   });
